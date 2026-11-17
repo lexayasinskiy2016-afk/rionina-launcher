@@ -57,7 +57,11 @@ class Minecraft {
       try {
         const json = JSON.parse(await fsp.readFile(path.join(dir, `${id}.json`), 'utf8'));
         const st = await fsp.stat(path.join(dir, MARKER));
-        out.push({ id, type: json.type, releaseTime: json.releaseTime, installedAt: st.mtimeMs });
+        out.push({
+          id, type: json.type, releaseTime: json.releaseTime, installedAt: st.mtimeMs,
+          loader: json.inheritsFrom ? (/fabric/i.test(id) ? 'fabric' : 'modded') : null,
+          gameVersion: json.inheritsFrom || id,
+        });
       } catch { /* повреждённая версия — пропускаем */ }
     }
     return out.sort((a, b) => b.installedAt - a.installedAt);
@@ -88,9 +92,79 @@ class Minecraft {
 
   libraryPath(lib) {
     if (lib.downloads?.artifact?.path) return path.join(this.dirs().libraries, lib.downloads.artifact.path);
-    // Старый формат без downloads: group:artifact:version
-    const [group, name, version] = lib.name.split(':');
-    return path.join(this.dirs().libraries, ...group.split('.'), name, version, `${name}-${version}.jar`);
+    // Формат Maven без downloads: group:artifact:version[:classifier]
+    const [group, name, version, cls] = lib.name.split(':');
+    return path.join(this.dirs().libraries, ...group.split('.'), name, version, `${name}-${version}${cls ? '-' + cls : ''}.jar`);
+  }
+
+  libKey(lib) {
+    const [g, a, , c] = lib.name.split(':');
+    return `${g}:${a}${c ? ':' + c : ''}`;
+  }
+
+  /** Папка игры: у ванильных версий — общая, у сборок с модами — своя. */
+  async gameDir(id) {
+    try {
+      const json = JSON.parse(await fsp.readFile(path.join(this.dirs().versions, id, `${id}.json`), 'utf8'));
+      if (json.inheritsFrom) return path.join(this.root, 'instances', id);
+    } catch { /* ванильная */ }
+    return this.root;
+  }
+
+  /** Сливает версию-наследника (Fabric) с родительской ванильной версией. */
+  async resolve(id) {
+    const vdir = path.join(this.dirs().versions, id);
+    const json = JSON.parse(await fsp.readFile(path.join(vdir, `${id}.json`), 'utf8'));
+    if (!json.inheritsFrom) return { json, jarId: id };
+    const parent = (await this.resolve(json.inheritsFrom)).json;
+    const seen = new Set();
+    const libraries = [];
+    for (const lib of [...(json.libraries || []), ...(parent.libraries || [])]) {
+      const k = this.libKey(lib) + (lib.natives ? ':natives' : '') + JSON.stringify(lib.rules || '');
+      if (seen.has(k)) continue;
+      seen.add(k);
+      libraries.push(lib);
+    }
+    const merged = {
+      ...parent,
+      ...json,
+      libraries,
+      type: parent.type,
+      assetIndex: parent.assetIndex,
+      downloads: parent.downloads,
+      javaVersion: json.javaVersion || parent.javaVersion,
+      logging: parent.logging,
+      mainClass: json.mainClass || parent.mainClass,
+      minecraftArguments: json.minecraftArguments || parent.minecraftArguments,
+    };
+    if (parent.arguments || json.arguments) {
+      merged.arguments = {
+        game: [...(parent.arguments?.game || []), ...(json.arguments?.game || [])],
+        jvm: [...(parent.arguments?.jvm || []), ...(json.arguments?.jvm || [])],
+      };
+    }
+    return { json: merged, jarId: json.inheritsFrom };
+  }
+
+  /** Установка версии с модлоадером: сначала родительская версия, потом библиотеки загрузчика. */
+  async installInherited(id, json, onProgress) {
+    const installed = await this.listInstalled();
+    if (!installed.some((v) => v.id === json.inheritsFrom)) await this.install(json.inheritsFrom, onProgress);
+    const libraries = this.dirs().libraries;
+    const jobs = json.libraries.filter((l) => allowed(l.rules)).map((lib) => {
+      const dest = this.libraryPath(lib);
+      const art = lib.downloads?.artifact;
+      const url = art?.url || `${(lib.url || LIBRARIES_URL).replace(/\/?$/, '/')}${path.relative(libraries, dest).split(path.sep).join('/')}`;
+      return { url, dest, sha1: art?.sha1 || lib.sha1, size: art?.size || lib.size };
+    });
+    let done = 0;
+    await pool(jobs, 8, async (j) => {
+      await download(j.url, j.dest, { sha1: j.sha1, size: j.size });
+      onProgress({ stage: `Установка Fabric для ${json.inheritsFrom}`, done: ++done, total: jobs.length });
+    });
+    await fsp.mkdir(path.join(this.root, 'instances', id, 'mods'), { recursive: true });
+    await fsp.writeFile(path.join(this.dirs().versions, id, MARKER), new Date().toISOString());
+    onProgress({ stage: 'Готово', done: 1, total: 1 });
   }
 
   async install(id, onProgress = () => {}) {
@@ -98,6 +172,7 @@ class Minecraft {
     const vdir = path.join(versions, id);
     onProgress({ stage: 'Получение информации о версии', done: 0, total: 1 });
     const json = await this.readVersionJson(id);
+    if (json.inheritsFrom) return this.installInherited(id, json, onProgress);
 
     // Собираем список всего, что нужно скачать
     const jobs = [];
@@ -185,8 +260,10 @@ class Minecraft {
 
   async launch(id, account, settings, { onLog, onExit } = {}) {
     const { versions, libraries, assets } = this.dirs();
-    const vdir = path.join(versions, id);
-    const json = JSON.parse(await fsp.readFile(path.join(vdir, `${id}.json`), 'utf8'));
+    const { json, jarId } = await this.resolve(id);
+    const vdir = path.join(versions, jarId);
+    const gameDir = await this.gameDir(id);
+    await fsp.mkdir(gameDir, { recursive: true });
     const java = await ensureJava(this.root, this.javaComponent(json));
 
     const cp = [];
@@ -199,13 +276,13 @@ class Minecraft {
       seen.add(p);
       cp.push(p);
     }
-    cp.push(path.join(vdir, `${id}.jar`));
+    cp.push(path.join(vdir, `${jarId}.jar`));
 
     const ai = json.assetIndex;
     const vars = {
       auth_player_name: account.name,
       version_name: id,
-      game_directory: this.root,
+      game_directory: gameDir,
       assets_root: assets,
       game_assets: ai.id === 'pre-1.6' ? path.join(this.root, 'resources') : path.join(assets, 'virtual', ai.id),
       assets_index_name: ai.id,
@@ -253,7 +330,7 @@ class Minecraft {
 
     const args = [...jvm, json.mainClass, ...game];
     onLog?.(`[Rionina] ${java} ${json.mainClass} (${id})\n`);
-    const child = spawn(java, args, { cwd: this.root, detached: false });
+    const child = spawn(java, args, { cwd: gameDir, detached: false });
     child.stdout.on('data', (d) => onLog?.(d.toString()));
     child.stderr.on('data', (d) => onLog?.(d.toString()));
     child.on('close', (code) => onExit?.(code));

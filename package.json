@@ -1,7 +1,7 @@
 {
   "name": "rionina-launcher",
   "productName": "Rionina Launcher",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Rionina Launcher — Minecraft Java & Bedrock launcher in Apple style",
   "main": "src/main.js",
   "author": "Rionina",
@@ -19,17 +19,37 @@
   },
   "devDependencies": {
     "electron": "^38.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "skinview3d": "^3.4.2"
   },
   "build": {
     "appId": "com.rionina.launcher",
     "productName": "Rionina Launcher",
-    "directories": { "output": "dist" },
+    "directories": {
+      "output": "dist"
+    },
     "publish": null,
-    "files": ["src/**/*", "package.json"],
-    "win": { "target": "nsis", "icon": "build/icon.png" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
-    "mac": { "target": "dmg", "category": "public.app-category.games", "icon": "build/icon.png" },
-    "linux": { "target": "AppImage", "category": "Game", "icon": "build/icon.png" }
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.games",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Game",
+      "icon": "build/icon.png"
+    }
   }
 }

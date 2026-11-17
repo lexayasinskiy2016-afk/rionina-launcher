@@ -20,16 +20,29 @@ contextBridge.exposeInMainWorld('rionina', {
     close: () => call('win:close'),
   },
   openExternal: (u) => call('open:external', u),
-  openFolder: () => call('open:folder'),
+  openFolder: (versionId) => call('open:folder', versionId),
   account: {
     get: () => call('account:get'),
+    list: () => call('account:list'),
     microsoft: () => call('account:microsoft'),
     offline: (name) => call('account:offline', name),
+    switch: (uuid) => call('account:switch', uuid),
+    remove: (uuid) => call('account:remove', uuid),
     logout: () => call('account:logout'),
   },
   settings: {
     get: () => call('settings:get'),
     set: (p) => call('settings:set', p),
+  },
+  theme: {
+    getBg: () => call('theme:getBg'),
+    pickBg: () => call('theme:pickBg'),
+    clearBg: () => call('theme:clearBg'),
+  },
+  skin: {
+    apply: (id) => call('skin:apply', id),
+    export: (id) => call('skin:export', id),
+    import: () => call('skin:import'),
   },
   news: {
     list: () => call('news:list'),
@@ -37,8 +50,21 @@ contextBridge.exposeInMainWorld('rionina', {
   },
   versions: {
     list: (force) => call('versions:list', force),
+    installed: () => call('versions:installed'),
     install: (id) => call('versions:install', id),
     remove: (id) => call('versions:remove', id),
+  },
+  fabric: {
+    games: () => call('fabric:games'),
+    create: (v) => call('fabric:create', v),
+  },
+  content: {
+    search: (p) => call('content:search', p),
+    list: (p) => call('content:list', p),
+    install: (p) => call('content:install', p),
+    remove: (p) => call('content:remove', p),
+    ownPacks: () => call('packs:own'),
+    installOwn: (p) => call('packs:installOwn', p),
   },
   game: {
     launch: (id) => call('game:launch', id),

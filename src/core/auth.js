@@ -45,4 +45,20 @@ function loginOffline(name) {
   };
 }
 
-module.exports = { loginMicrosoft, refreshMicrosoft, loginOffline };
+/** Загружает скин в профиль Minecraft (виден всем игрокам на серверах). */
+async function uploadSkin(accessToken, png, variant = 'classic') {
+  const form = new FormData();
+  form.append('variant', variant === 'slim' ? 'slim' : 'classic');
+  form.append('file', new Blob([png], { type: 'image/png' }), 'skin.png');
+  const res = await fetch('https://api.minecraftservices.com/minecraft/profile/skins', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Mojang не принял скин (HTTP ${res.status}) ${text.slice(0, 120)}`);
+  }
+}
+
+module.exports = { loginMicrosoft, refreshMicrosoft, loginOffline, uploadSkin };

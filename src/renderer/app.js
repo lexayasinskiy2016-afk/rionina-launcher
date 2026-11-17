@@ -40,14 +40,16 @@ async function init() {
   $$('#winControls button').forEach((b) => b.addEventListener('click', () => R.win[b.dataset.act]()));
 
   st.settings = await R.settings.get();
+  await applyTheme();
   st.account = await R.account.get().catch(() => null);
   st.account ? showMain() : showLogin();
 }
 
-function showLogin() {
+function showLogin(adding = false) {
   $('#main').classList.add('hidden');
   $('#login').classList.remove('hidden');
   $('#loginError').textContent = '';
+  $('#loginBack').classList.toggle('hidden', !(adding && st.account));
 }
 
 function showMain() {
@@ -89,9 +91,9 @@ $('#offlineForm').addEventListener('submit', async (e) => {
 });
 
 $('#btnLogout').addEventListener('click', async () => {
-  await R.account.logout();
-  st.account = null;
-  showLogin();
+  const next = await R.account.logout();
+  st.account = next;
+  if (next) { renderAccount(); toast(`Вы вошли как ${next.name}`); } else showLogin();
 });
 
 function renderAccount() {
@@ -106,6 +108,7 @@ function renderAccount() {
     av.style.backgroundImage = '';
     av.textContent = a.name[0].toUpperCase();
   }
+  updateProfileVisuals();
 }
 
 // ───────────── Навигация ─────────────
@@ -497,4 +500,5 @@ function renderSettings() {
   $('#btnFolder').onclick = () => R.openFolder();
 }
 
-init();
+// Запускаем, когда загружены все скрипты страницы
+window.addEventListener('DOMContentLoaded', () => init().catch((e) => { console.error(e); showLogin(); }));
