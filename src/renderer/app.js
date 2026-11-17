@@ -58,6 +58,7 @@ function showMain() {
   loadVersions();
   if (!st.newsLoaded) loadNews();
   loadBedrock();
+  R.bedrock.auto();
 }
 
 // ───────────── Вход ─────────────
@@ -411,31 +412,67 @@ R.onGameLog((line) => {
 
 // ───────────── Bedrock ─────────────
 
+let bedrockBusy = false;
+
 async function loadBedrock() {
+  if (bedrockBusy) return;
   const s = await R.bedrock.status().catch(() => ({ supported: false }));
   const badge = $('#bedrockBadge');
   const text = $('#bedrockText');
   const play = $('#btnBedrockPlay');
   const store = $('#btnBedrockInstall');
+  $('#brProgress').classList.add('hidden');
   if (!s.supported) {
     badge.textContent = 'Только Windows';
     text.textContent = 'На этом компьютере Bedrock недоступен — он выходит для Windows 10/11, Android, iOS и консолей. Установите Rionina на телефон, чтобы играть в Bedrock там.';
     play.disabled = true;
     store.classList.add('hidden');
+    $('#autoBedrockRow').classList.add('hidden');
   } else if (s.installed) {
     badge.textContent = `Установлено · ${s.version}`;
     text.textContent = 'Bedrock Edition установлен и обновляется автоматически через Microsoft Store.';
+    play.textContent = 'Играть';
     play.disabled = false;
-    store.textContent = 'Обновления';
+    store.textContent = 'Microsoft Store';
   } else {
     badge.textContent = 'Не установлено';
-    text.textContent = 'Нажмите «Установить» — откроется Microsoft Store. Bedrock привязан к вашему аккаунту Microsoft.';
+    text.textContent = 'Нажмите «Установить» — лаунчер сам скачает и установит Bedrock. Нужен аккаунт Microsoft с купленным Minecraft.';
     play.textContent = 'Установить';
     play.disabled = false;
+    store.textContent = 'Microsoft Store';
   }
 }
+
 $('#btnBedrockPlay').onclick = () => R.bedrock.launch().catch((e) => toast(e.message));
-$('#btnBedrockInstall').onclick = () => R.bedrock.install();
+$('#btnBedrockInstall').onclick = () => R.bedrock.store();
+
+R.onBedrockState(({ state, error }) => {
+  const play = $('#btnBedrockPlay');
+  if (state === 'started') {
+    bedrockBusy = true;
+    $('#bedrockBadge').textContent = 'Установка…';
+    $('#bedrockText').textContent = 'Скачиваем Minecraft: Bedrock Edition из Microsoft Store. Можно пока играть в Java.';
+    $('#brProgress').classList.remove('hidden');
+    $('#brProgress').classList.add('indeterminate');
+    play.textContent = 'Установка…';
+    play.disabled = true;
+    toast('Начата установка Minecraft Bedrock');
+  } else {
+    bedrockBusy = false;
+    if (state === 'done') toast('Minecraft Bedrock установлен — нажмите «Играть» во вкладке Bedrock');
+    else toast(error || 'Не удалось установить Bedrock', 7000);
+    loadBedrock();
+  }
+});
+
+R.onBedrockProgress(({ percent, text }) => {
+  const bar = $('#brProgress');
+  bar.classList.remove('hidden');
+  bar.classList.toggle('indeterminate', percent == null);
+  if (percent != null) $('#brFill').style.width = `${percent}%`;
+  $('#bedrockBadge').textContent = percent != null ? `Установка · ${percent}%` : 'Установка…';
+  if (text) $('#bedrockText').textContent = text;
+});
 
 // ───────────── Настройки ─────────────
 
@@ -454,6 +491,8 @@ function renderSettings() {
   $('#fullscreen').onchange = (e) => R.settings.set({ fullscreen: e.target.checked });
   $('#closeOnLaunch').checked = s.closeOnLaunch;
   $('#closeOnLaunch').onchange = (e) => R.settings.set({ closeOnLaunch: e.target.checked });
+  $('#autoBedrock').checked = s.autoBedrock !== false;
+  $('#autoBedrock').onchange = (e) => R.settings.set({ autoBedrock: e.target.checked });
   $('#rootPath').textContent = s.root;
   $('#btnFolder').onclick = () => R.openFolder();
 }

@@ -16,7 +16,7 @@ let game = null; // запущенный процесс игры
 
 // ───────────── Хранилище настроек и аккаунта ─────────────
 
-const DEFAULTS = { memory: 4096, fullscreen: false, closeOnLaunch: false, selectedVersion: null, account: null };
+const DEFAULTS = { memory: 4096, fullscreen: false, closeOnLaunch: false, selectedVersion: null, account: null, autoBedrock: true, bedrockAutoDone: false };
 
 function load() {
   try {
@@ -131,7 +131,7 @@ handle('settings:get', () => {
   return { ...rest, totalMemory: Math.floor(require('os').totalmem() / 1024 / 1024), root: ROOT };
 });
 handle('settings:set', (patch) => {
-  for (const k of ['memory', 'fullscreen', 'closeOnLaunch', 'selectedVersion']) if (k in patch) state[k] = patch[k];
+  for (const k of ['memory', 'fullscreen', 'closeOnLaunch', 'selectedVersion', 'autoBedrock']) if (k in patch) state[k] = patch[k];
   save();
 });
 
@@ -206,5 +206,28 @@ handle('game:stop', () => { if (game) game.kill(); });
 
 // Bedrock
 handle('bedrock:status', () => bedrock.status());
-handle('bedrock:launch', () => bedrock.launch());
-handle('bedrock:install', () => bedrock.install());
+handle('bedrock:launch', async () => {
+  const s = await bedrock.status();
+  if (s.supported && !s.installed) return installBedrock();
+  return bedrock.launch();
+});
+handle('bedrock:install', () => installBedrock());
+handle('bedrock:store', () => bedrock.openStore());
+
+// Установка Bedrock с прогрессом в интерфейсе
+async function installBedrock() {
+  send('bedrock:state', { state: 'started' });
+  const res = await bedrock.install((p) => send('bedrock:progress', p));
+  send('bedrock:state', res.ok ? { state: 'done', version: res.version } : { state: 'error', error: res.reason });
+  return res;
+}
+
+// Автоустановка Bedrock при первом запуске лаунчера (только Windows)
+async function autoInstallBedrock() {
+  if (process.platform !== 'win32' || !state.autoBedrock || state.bedrockAutoDone) return;
+  const s = await bedrock.status();
+  state.bedrockAutoDone = true;
+  save();
+  if (!s.installed) installBedrock();
+}
+handle('bedrock:auto', () => { autoInstallBedrock(); });

@@ -255,3 +255,8 @@ nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes shimmer { to { background-position: -200% 0; } }
+
+.br-progress { margin-top: 16px; height: 6px; border-radius: 99px; background: rgba(255,255,255,.22); overflow: hidden; max-width: 420px; }
+.br-progress div { height: 100%; width: 0; background: #fff; border-radius: 99px; transition: width .3s; }
+.br-progress.indeterminate div { width: 35% !important; animation: slide 1.2s ease-in-out infinite; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }

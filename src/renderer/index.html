@@ -119,6 +119,7 @@
               <span class="pill" id="bedrockBadge">Проверка…</span>
               <h3>Minecraft: Bedrock Edition</h3>
               <p id="bedrockText" class="muted">Проверяем, установлен ли Bedrock на этом компьютере…</p>
+              <div class="br-progress hidden" id="brProgress"><div id="brFill"></div></div>
               <div class="row-gap">
                 <button class="btn btn-primary" id="btnBedrockPlay">Играть</button>
                 <button class="btn btn-secondary" id="btnBedrockInstall">Microsoft Store</button>
@@ -154,6 +155,10 @@
             <div class="group-row">
               <div><strong>Скрывать лаунчер</strong><span class="muted small">Прятать окно, пока идёт игра</span></div>
               <label class="switch"><input type="checkbox" id="closeOnLaunch" /><span></span></label>
+            </div>
+            <div class="group-row" id="autoBedrockRow">
+              <div><strong>Автоустановка Bedrock</strong><span class="muted small">Устанавливать Minecraft Bedrock при первом запуске (Windows)</span></div>
+              <label class="switch"><input type="checkbox" id="autoBedrock" /><span></span></label>
             </div>
             <div class="group-row">
               <div><strong>Папка игры</strong><span class="muted small" id="rootPath"></span></div>
