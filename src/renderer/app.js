@@ -232,7 +232,9 @@ function renderInstalled() {
       </div>`;
     el.querySelector('[data-play]').onclick = () => { selectVersion(v.id); play(); };
     el.querySelector('[data-del]').onclick = async () => {
-      if (!confirm(`Удалить версию ${v.id}? Миры и настройки сохранятся.`)) return;
+      const deps = st.installed.filter((x) => x.loader && x.gameVersion === v.id && x.id !== v.id);
+      const warn = deps.length ? `\n\nНа ней работает сборка с модами (${deps.map((d) => d.id).join(', ')}) — при запуске лаунчер скачает эту версию заново.` : '';
+      if (!confirm(`Удалить версию ${v.id}? Миры и настройки сохранятся.${warn}`)) return;
       await R.versions.remove(v.id);
       if (st.settings.selectedVersion === v.id) selectVersion(null);
       loadVersions();

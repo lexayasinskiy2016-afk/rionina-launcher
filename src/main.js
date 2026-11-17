@@ -345,8 +345,8 @@ handle('game:launch', async (id) => {
   if (!acc) throw new Error('Сначала войдите в аккаунт');
   await refreshIfNeeded(acc, true);
 
-  const installedList = await mc.listInstalled();
-  if (!installedList.some((v) => v.id === id)) {
+  // Проверяем всю цепочку: сборка Fabric + обычная версия под ней
+  if (!(await mc.isInstalled(id))) {
     await mc.install(id, (p) => send('install:progress', { id, ...p }));
     send('install:state', { id, state: 'done' });
   }

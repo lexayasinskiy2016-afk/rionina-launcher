@@ -147,9 +147,22 @@ class Minecraft {
   }
 
   /** Установка версии с модлоадером: сначала родительская версия, потом библиотеки загрузчика. */
+  /** Установлена ли версия целиком — вместе с родительской (для Fabric). */
+  async isInstalled(id) {
+    const dir = path.join(this.dirs().versions, id);
+    if (!fs.existsSync(path.join(dir, MARKER))) return false;
+    try {
+      const json = JSON.parse(await fsp.readFile(path.join(dir, `${id}.json`), 'utf8'));
+      if (json.inheritsFrom) return this.isInstalled(json.inheritsFrom);
+      return fs.existsSync(path.join(dir, `${id}.jar`));
+    } catch {
+      return false;
+    }
+  }
+
   async installInherited(id, json, onProgress) {
-    const installed = await this.listInstalled();
-    if (!installed.some((v) => v.id === json.inheritsFrom)) await this.install(json.inheritsFrom, onProgress);
+    // Родительская версия могла быть удалена — тогда ставим её заново
+    if (!(await this.isInstalled(json.inheritsFrom))) await this.install(json.inheritsFrom, onProgress);
     const libraries = this.dirs().libraries;
     const jobs = json.libraries.filter((l) => allowed(l.rules)).map((lib) => {
       const dest = this.libraryPath(lib);
