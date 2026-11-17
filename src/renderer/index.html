@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'" />
+  <title>Rionina Launcher</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="titlebar" class="drag">
+    <div class="win-controls no-drag" id="winControls">
+      <button data-act="minimize" aria-label="Свернуть"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
+      <button data-act="maximize" aria-label="Развернуть"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" rx="1"/></svg></button>
+      <button data-act="close" class="close" aria-label="Закрыть"><svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2l-6 6"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ───────── Вход ───────── -->
+  <section id="login" class="screen hidden">
+    <div class="login-bg"></div>
+    <div class="login-card">
+      <img class="app-icon" src="assets/icon.png" alt="" />
+      <h1>Rionina Launcher</h1>
+      <p class="muted">Войдите, чтобы играть в Minecraft</p>
+
+      <button class="btn btn-ms" id="btnMicrosoft">
+        <svg viewBox="0 0 21 21" class="ms-logo"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+        <span>Войти через Microsoft</span>
+      </button>
+      <p class="hint">Электронная почта, телефон или Skype — аккаунт с купленным Minecraft</p>
+
+      <div class="divider"><span>или</span></div>
+
+      <form id="offlineForm" class="offline">
+        <input id="nick" class="field" placeholder="Никнейм" maxlength="16" autocomplete="off" spellcheck="false" />
+        <button class="btn btn-secondary" type="submit">Играть офлайн</button>
+      </form>
+      <p class="error" id="loginError"></p>
+    </div>
+  </section>
+
+  <!-- ───────── Основной экран ───────── -->
+  <section id="main" class="screen hidden">
+    <aside class="sidebar">
+      <div class="brand drag">
+        <img src="assets/icon.png" alt="" />
+        <span>Rionina</span>
+      </div>
+      <nav>
+        <button class="nav active" data-tab="news">
+          <svg viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h10A1.5 1.5 0 0 1 17 5.5V18a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M17 9h1.5A1.5 1.5 0 0 1 20 10.5V18a2 2 0 0 1-2 2"/><path d="M7.5 8h6M7.5 11.5h6M7.5 15h4"/></svg>
+          Новости
+        </button>
+        <button class="nav" data-tab="versions">
+          <svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>
+          Версии
+        </button>
+        <button class="nav" data-tab="bedrock">
+          <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M8 10v4M6 12h4"/><circle cx="16" cy="11" r=".9"/><circle cx="18" cy="13" r=".9"/></svg>
+          Bedrock
+        </button>
+        <button class="nav" data-tab="settings">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          Настройки
+        </button>
+      </nav>
+      <div class="account" id="accountChip">
+        <div class="avatar" id="avatar"></div>
+        <div class="acc-text">
+          <strong id="accName"></strong>
+          <span id="accType"></span>
+        </div>
+        <button class="icon-btn" id="btnLogout" title="Выйти">
+          <svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <!-- Новости -->
+      <div class="tab" id="tab-news">
+        <header class="page-head drag"><h2>Новости</h2><p class="muted">Что нового в Minecraft</p></header>
+        <div class="scroll"><div id="newsList" class="news-grid"></div></div>
+      </div>
+
+      <!-- Версии -->
+      <div class="tab hidden" id="tab-versions">
+        <header class="page-head drag">
+          <h2>Версии</h2>
+          <p class="muted">Все выпуски Minecraft: Java Edition — от самой первой до самой новой</p>
+        </header>
+        <div class="scroll">
+          <h3 class="section-title">Мои версии</h3>
+          <div id="installedList" class="installed-grid"></div>
+
+          <div class="toolbar">
+            <div class="segmented" id="typeFilter">
+              <button class="active" data-type="release">Релизы</button>
+              <button data-type="snapshot">Снапшоты</button>
+              <button data-type="old_beta">Beta</button>
+              <button data-type="old_alpha">Alpha</button>
+            </div>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+              <input id="versionSearch" placeholder="Поиск версии" spellcheck="false" />
+            </div>
+          </div>
+          <div id="versionList" class="list"></div>
+        </div>
+      </div>
+
+      <!-- Bedrock -->
+      <div class="tab hidden" id="tab-bedrock">
+        <header class="page-head drag"><h2>Bedrock Edition</h2><p class="muted">Minecraft для Windows, телефонов и консолей</p></header>
+        <div class="scroll">
+          <div class="bedrock-hero">
+            <div>
+              <span class="pill" id="bedrockBadge">Проверка…</span>
+              <h3>Minecraft: Bedrock Edition</h3>
+              <p id="bedrockText" class="muted">Проверяем, установлен ли Bedrock на этом компьютере…</p>
+              <div class="row-gap">
+                <button class="btn btn-primary" id="btnBedrockPlay">Играть</button>
+                <button class="btn btn-secondary" id="btnBedrockInstall">Microsoft Store</button>
+              </div>
+            </div>
+          </div>
+          <div class="card-grid">
+            <div class="card">
+              <h4>📱 Rionina на телефоне</h4>
+              <p class="muted">Установите Rionina Launcher на Android или iPhone — новости, серверы и запуск Minecraft Bedrock в одно касание.</p>
+            </div>
+            <div class="card">
+              <h4>🔄 Кроссплей</h4>
+              <p class="muted">Bedrock на ПК, телефоне, Xbox, PlayStation и Switch играет на одних серверах и в одних мирах Realms.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Настройки -->
+      <div class="tab hidden" id="tab-settings">
+        <header class="page-head drag"><h2>Настройки</h2></header>
+        <div class="scroll">
+          <div class="group">
+            <div class="group-row">
+              <div><strong>Оперативная память</strong><span class="muted small" id="memHint"></span></div>
+              <div class="mem"><input type="range" id="memory" min="1024" step="512" /><output id="memVal"></output></div>
+            </div>
+            <div class="group-row">
+              <div><strong>Полноэкранный режим</strong><span class="muted small">Запускать игру на весь экран</span></div>
+              <label class="switch"><input type="checkbox" id="fullscreen" /><span></span></label>
+            </div>
+            <div class="group-row">
+              <div><strong>Скрывать лаунчер</strong><span class="muted small">Прятать окно, пока идёт игра</span></div>
+              <label class="switch"><input type="checkbox" id="closeOnLaunch" /><span></span></label>
+            </div>
+            <div class="group-row">
+              <div><strong>Папка игры</strong><span class="muted small" id="rootPath"></span></div>
+              <button class="btn btn-secondary btn-sm" id="btnFolder">Открыть</button>
+            </div>
+          </div>
+          <h3 class="section-title">Журнал игры</h3>
+          <pre id="log" class="log">Игра ещё не запускалась.</pre>
+          <p class="muted small center">Rionina Launcher <span id="appVer"></span> · Java устанавливается автоматически · Не связан с Mojang или Microsoft</p>
+        </div>
+      </div>
+
+      <!-- Панель запуска -->
+      <footer class="playbar">
+        <div class="pb-progress" id="pbProgress"><div id="pbFill"></div></div>
+        <div class="pb-left">
+          <div class="pb-label muted small" id="pbStage">Выбранная версия</div>
+          <select id="versionSelect" class="select"></select>
+        </div>
+        <button class="btn btn-play" id="btnPlay">Играть</button>
+      </footer>
+    </main>
+  </section>
+
+  <!-- Модальное окно новости -->
+  <div class="sheet hidden" id="sheet">
+    <div class="sheet-card">
+      <button class="icon-btn sheet-close" id="sheetClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div id="sheetBody"></div>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

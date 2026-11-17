@@ -1,0 +1,34 @@
+{
+  "name": "rionina-launcher",
+  "productName": "Rionina Launcher",
+  "version": "1.0.0",
+  "description": "Rionina Launcher — Minecraft Java & Bedrock launcher in Apple style",
+  "main": "src/main.js",
+  "author": "Rionina",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "msmc": "^5.0.5"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.rionina.launcher",
+    "productName": "Rionina Launcher",
+    "directories": { "output": "dist" },
+    "files": ["src/**/*", "package.json"],
+    "win": { "target": "nsis", "icon": "build/icon.png" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "mac": { "target": "dmg", "category": "public.app-category.games", "icon": "build/icon.png" },
+    "linux": { "target": "AppImage", "category": "Game", "icon": "build/icon.png" }
+  }
+}

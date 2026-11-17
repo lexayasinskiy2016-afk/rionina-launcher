@@ -1,0 +1,8 @@
+{
+  "appId": "com.rionina.launcher",
+  "appName": "Rionina Launcher",
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}

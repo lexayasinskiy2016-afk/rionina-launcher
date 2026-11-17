@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <title>Rionina Launcher</title>
+  <style>
+    :root {
+      --bg: #f2f2f7; --surface: #fff; --surface-2: #e9e9ee; --text: #1c1c1e; --muted: #8a8a8e; --line: rgba(60,60,67,.14);
+      --accent: #007aff; --green: #34c759; --red: #ff3b30;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, "Segoe UI", sans-serif; color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #000; --surface: #1c1c1e; --surface-2: #2c2c2e; --text: #f5f5f7; --muted: #8e8e93; --line: rgba(84,84,88,.5); --accent: #0a84ff; }
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font-size: 16px; }
+    body { padding: env(safe-area-inset-top) 16px calc(90px + env(safe-area-inset-bottom)); -webkit-user-select: none; user-select: none; }
+    button { font: inherit; border: 0; background: none; color: inherit; cursor: pointer; }
+    input { font: inherit; color: inherit; }
+    svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .hidden { display: none !important; }
+    .muted { color: var(--muted); }
+    h1 { font-size: 34px; font-weight: 800; letter-spacing: -.025em; margin: 14px 0 16px; }
+    h2 { font-size: 22px; font-weight: 700; letter-spacing: -.015em; margin: 28px 0 10px; }
+
+    .hero { border-radius: 24px; padding: 22px; color: #fff; position: relative; overflow: hidden;
+      background: linear-gradient(140deg, #1f8f3a, #2f6fd6 60%, #6b3bd6); box-shadow: 0 14px 34px rgba(31, 100, 160, .35); }
+    .hero img { width: 64px; height: 64px; border-radius: 15px; box-shadow: 0 6px 16px rgba(0,0,0,.25); }
+    .hero h3 { margin: 14px 0 4px; font-size: 24px; letter-spacing: -.02em; }
+    .hero p { margin: 0; opacity: .85; font-size: 15px; }
+    .pill { position: absolute; top: 22px; right: 22px; background: rgba(255,255,255,.22); padding: 5px 11px; border-radius: 99px; font-size: 13px; font-weight: 600; }
+    .play { margin-top: 20px; width: 100%; height: 54px; border-radius: 16px; background: #fff; color: #1d6b39; font-weight: 700; font-size: 18px; }
+    .play:active, .btn:active { transform: scale(.97); }
+
+    .list { background: var(--surface); border-radius: 14px; overflow: hidden; }
+    .item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: .5px solid var(--line); min-height: 60px; }
+    .item:last-child { border-bottom: 0; }
+    .item .ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 700; flex-shrink: 0; background: linear-gradient(135deg, #34c759, #0a84ff); }
+    .item .meta { flex: 1; min-width: 0; }
+    .item strong { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item span { font-size: 13px; color: var(--muted); }
+    .btn { height: 34px; padding: 0 16px; border-radius: 99px; background: var(--surface-2); color: var(--accent); font-weight: 600; font-size: 15px; }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .del { color: var(--red); padding: 6px; }
+
+    .news { display: flex; flex-direction: column; gap: 14px; }
+    .ncard { background: var(--surface); border-radius: 18px; overflow: hidden; text-align: left; width: 100%; }
+    .ncard .img { aspect-ratio: 16/9; background: var(--surface-2) center/cover; }
+    .ncard .b { padding: 14px 16px 16px; }
+    .ncard .tag { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+    .ncard h4 { margin: 4px 0 6px; font-size: 18px; letter-spacing: -.01em; }
+    .ncard p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.4; }
+
+    .form { background: var(--surface); border-radius: 14px; overflow: hidden; }
+    .form input { width: 100%; height: 48px; border: 0; border-bottom: .5px solid var(--line); background: none; padding: 0 16px; outline: none; -webkit-user-select: text; user-select: text; }
+    .form button { width: 100%; height: 48px; color: var(--accent); font-weight: 600; }
+
+    .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+      background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(24px) saturate(1.8); -webkit-backdrop-filter: blur(24px) saturate(1.8); border-top: .5px solid var(--line); }
+    .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 500; color: var(--muted); padding: 4px 0; }
+    .tabbar svg { width: 26px; height: 26px; }
+    .tabbar button.active { color: var(--accent); }
+
+    .sheet { position: fixed; inset: 0; background: var(--surface); z-index: 10; overflow-y: auto; padding: calc(env(safe-area-inset-top) + 8px) 0 40px; animation: up .3s cubic-bezier(.2,.8,.2,1); -webkit-user-select: text; user-select: text; }
+    .sheet .close { position: sticky; top: 0; margin-left: auto; display: block; margin-right: 12px; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2); color: var(--muted); font-size: 18px; z-index: 1; }
+    .sheet .article { padding: 0 20px; line-height: 1.55; }
+    .sheet img { max-width: 100%; border-radius: 14px; }
+    .sheet a { color: var(--accent); }
+    .toast { position: fixed; left: 16px; right: 16px; bottom: calc(96px + env(safe-area-inset-bottom)); background: rgba(30,30,32,.94); color: #fff; padding: 14px 16px; border-radius: 14px; z-index: 20; text-align: center; animation: up .25s; }
+    @keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+  </style>
+</head>
+<body>
+  <!-- Главная -->
+  <section id="tab-home">
+    <h1>Rionina</h1>
+    <div class="hero">
+      <span class="pill" id="status">…</span>
+      <img src="icon.png" alt="" />
+      <h3>Minecraft: Bedrock</h3>
+      <p id="statusText">Проверяем, установлен ли Minecraft…</p>
+      <button class="play" id="btnPlay">Играть</button>
+    </div>
+
+    <h2>Быстрый вход на сервер</h2>
+    <div class="list" id="quickServers"></div>
+
+    <h2>Свежие обновления</h2>
+    <div class="news" id="homeNews"></div>
+  </section>
+
+  <!-- Новости -->
+  <section id="tab-news" class="hidden">
+    <h1>Новости</h1>
+    <div class="news" id="newsList"></div>
+  </section>
+
+  <!-- Серверы -->
+  <section id="tab-servers" class="hidden">
+    <h1>Серверы</h1>
+    <p class="muted">Нажмите «Играть» — Minecraft откроется и добавит сервер в список.</p>
+    <div class="list" id="serverList"></div>
+    <h2>Добавить сервер</h2>
+    <form class="form" id="serverForm">
+      <input id="sName" placeholder="Название" maxlength="40" />
+      <input id="sHost" placeholder="Адрес (play.example.net)" autocapitalize="off" autocorrect="off" />
+      <input id="sPort" placeholder="Порт (19132)" inputmode="numeric" />
+      <button type="submit">Сохранить</button>
+    </form>
+  </section>
+
+  <nav class="tabbar">
+    <button class="active" data-tab="home">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Главная
+    </button>
+    <button data-tab="news">
+      <svg viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h10A1.5 1.5 0 0 1 17 5.5V18a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M17 9h1.5A1.5 1.5 0 0 1 20 10.5V18a2 2 0 0 1-2 2M7.5 8h6M7.5 11.5h6M7.5 15h4"/></svg>Новости
+    </button>
+    <button data-tab="servers">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Серверы
+    </button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
