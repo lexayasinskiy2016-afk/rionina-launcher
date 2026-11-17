@@ -1,18 +1,18 @@
-// Кейсы: пока бесплатные. Из них выпадают скины и спецэффекты.
+// Сундуки: открываются за Rionina Coins (с Pro — бесплатно). Внутри скины и спецэффекты.
 
 const CASES = [
   {
-    id: 'starter', name: 'Стартовый кейс', art: '🎁', desc: 'Скины и обычные эффекты',
+    id: 'starter', name: 'Обычный сундук', art: '📦', desc: 'Скины и обычные эффекты',
     bg: 'linear-gradient(140deg, #34c759, #0a84ff)',
     pool: { common: 64, rare: 28, epic: 7, legendary: 1 },
   },
   {
-    id: 'effects', name: 'Кейс эффектов', art: '⚡', desc: 'Только спецэффекты — молния, огонь, портал…',
+    id: 'effects', name: 'Сундук эффектов', art: '⚡', desc: 'Только спецэффекты — молния, огонь, портал…',
     bg: 'linear-gradient(140deg, #5e5ce6, #bf5af2)',
     pool: { common: 50, rare: 32, epic: 14, legendary: 4 }, onlyEffects: true,
   },
   {
-    id: 'legend', name: 'Легендарный кейс', art: '👑', desc: 'Только редкое и выше',
+    id: 'legend', name: 'Легендарный сундук', art: '👑', desc: 'Только редкое и выше',
     bg: 'linear-gradient(140deg, #ff9f0a, #ff375f)',
     pool: { rare: 60, epic: 30, legendary: 10 },
   },
@@ -87,6 +87,14 @@ let spinning = false;
 async function openCase(box) {
   if (spinning) return;
   spinning = true;
+  try {
+    const res = await R.eco.chest(box.id);
+    setMe(res.me);
+  } catch (e) {
+    spinning = false;
+    toast(e.message, 5000);
+    return;
+  }
   const sheet = $('#caseSheet');
   const track = $('#rouletteTrack');
   const result = $('#caseResult');
@@ -155,13 +163,16 @@ $('#caseSheet').addEventListener('click', (e) => {
 });
 
 function renderCases() {
+  renderDaily();
   const grid = $('#casesGrid');
   grid.innerHTML = '';
   for (const box of CASES) {
     const el = document.createElement('div');
     el.className = 'case-box';
     el.style.background = box.bg;
-    el.innerHTML = `<span class="free">Бесплатно</span><div class="art">${box.art}</div><h3>${esc(box.name)}</h3><p>${esc(box.desc)}</p><button class="btn">Открыть</button>`;
+    const price = st.me?.economy?.chests?.[box.id] ?? '…';
+    const pro = !!st.me?.pro;
+    el.innerHTML = `<span class="free">${pro ? 'PRO · бесплатно' : `<i class="coin"></i> ${price}`}</span><div class="art">${box.art}</div><h3>${esc(box.name)}</h3><p>${esc(box.desc)}</p><button class="btn">${pro ? 'Открыть бесплатно' : `Открыть за ${price}`}</button>`;
     el.querySelector('button').onclick = () => openCase(box);
     grid.appendChild(el);
   }
@@ -187,3 +198,40 @@ function renderCollection() {
 }
 
 document.querySelector('.nav[data-tab="cases"]').addEventListener('click', renderCases);
+
+// ───────────── Ежедневная награда ─────────────
+
+const DAILY_REWARDS = [50, 60, 70, 80, 100, 120, 200];
+
+function renderDaily() {
+  const box = $('#dailyCard');
+  const me = st.me;
+  if (!me) { box.innerHTML = ''; return; }
+  const k = me.pro ? 2 : 1;
+  const streak = me.streak || 0;
+  const todayIdx = me.dailyAvailable ? Math.min(streak, 6) : Math.max(0, Math.min(streak - 1, 6));
+  box.innerHTML = `
+    <div class="daily-head">
+      <div><h3>Ежедневная награда</h3><p class="muted small">Заходите каждый день подряд — награда растёт${me.pro ? ' · Pro ×2' : ''}</p></div>
+      <button class="btn btn-primary" id="btnDaily" ${me.dailyAvailable ? '' : 'disabled'}>${me.dailyAvailable ? `Забрать ${me.nextDaily}` : 'Завтра ещё'}</button>
+    </div>
+    <div class="daily-days">${DAILY_REWARDS.map((r, i) => `
+      <div class="day ${i < todayIdx || (!me.dailyAvailable && i === todayIdx) ? 'got' : ''} ${me.dailyAvailable && i === todayIdx ? 'today' : ''}">
+        <span>День ${i + 1}</span><i class="coin"></i><b>${r * k}</b>
+      </div>`).join('')}</div>`;
+  $('#btnDaily').onclick = async () => {
+    try {
+      const res = await R.eco.daily();
+      setMe(res.me);
+      toast(`+${res.reward} Rionina Coins!`);
+      coinBurst();
+    } catch (e) { toast(e.message); }
+  };
+}
+
+function coinBurst() {
+  const pill = $('#coinPill');
+  pill.classList.remove('bump');
+  void pill.offsetWidth;
+  pill.classList.add('bump');
+}

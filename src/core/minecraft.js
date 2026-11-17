@@ -230,7 +230,7 @@ class Minecraft {
     const total = unique.reduce((s, j) => s + (j.size || 0), 0);
     let done = 0;
     const tick = (n) => { done += n; onProgress({ stage: `Загрузка Minecraft ${id}`, done, total }); };
-    await pool(unique, 24, (j) => download(j.url, j.dest, { sha1: j.sha1, size: j.size, onBytes: tick }));
+    await pool(unique, this.concurrency || 24, (j) => download(j.url, j.dest, { sha1: j.sha1, size: j.size, onBytes: tick }));
 
     // Старые версии: копируем ассеты в "виртуальную" папку / resources
     if (index.virtual || index.map_to_resources) {
@@ -326,6 +326,12 @@ class Minecraft {
     };
 
     const jvm = [`-Xmx${settings.memory}M`, `-Xms${Math.min(512, settings.memory)}M`];
+    // Pro: настроенный сборщик мусора — меньше фризов и выше стабильный FPS
+    if (settings.pro) {
+      jvm.push('-XX:+UnlockExperimentalVMOptions', '-XX:+UseG1GC', '-XX:+ParallelRefProcEnabled', '-XX:MaxGCPauseMillis=200',
+        '-XX:+DisableExplicitGC', '-XX:G1NewSizePercent=30', '-XX:G1MaxNewSizePercent=40', '-XX:G1HeapRegionSize=8M',
+        '-XX:G1ReservePercent=20', '-XX:InitiatingHeapOccupancyPercent=15');
+    }
     if (json.logging?.client) {
       const lc = json.logging.client;
       jvm.push(lc.argument.replace('${path}', path.join(assets, 'log_configs', lc.file.id)));
@@ -340,6 +346,13 @@ class Minecraft {
       ? expand(json.arguments.game)
       : json.minecraftArguments.split(' ').map(sub);
     if (settings.fullscreen) game.push('--fullscreen');
+    // Сразу подключиться к миру друга
+    if (settings.join) {
+      const [host, port = '25565'] = String(settings.join).split(':');
+      const quickPlay = JSON.stringify(json.arguments?.game || []).includes('is_quick_play_multiplayer');
+      if (quickPlay) game.push('--quickPlayMultiplayer', `${host}:${port}`);
+      else game.push('--server', host, '--port', port);
+    }
 
     const args = [...jvm, json.mainClass, ...game];
     onLog?.(`[Rionina] ${java} ${json.mainClass} (${id})\n`);

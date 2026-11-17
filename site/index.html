@@ -1,0 +1,500 @@
+<title>Rionina Launcher</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Rionina Launcher — лаунчер Minecraft: все версии Java, Bedrock, моды, шейдеры, скины, друзья и сундуки.">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: «воксельная» сцена наверху → история-экскурсия по лаунчеру с липким окном → тарифы → блог → скачать */
+:root {
+  --bg: #f3f6f4;
+  --surface: #ffffff;
+  --surface-2: #e8eeea;
+  --ink: #0e1613;
+  --muted: #56655e;
+  --line: rgba(14, 22, 19, .1);
+  --grass: #23a653;
+  --grass-top: #5fcf6f;
+  --dirt: #8a5a3b;
+  --dirt-dark: #6b4329;
+  --sky: #1f6fe0;
+  --gold: #e7a70b;
+  --pro-a: #ff7a3d;
+  --pro-b: #b14ef0;
+  --shadow: 0 1px 2px rgba(14, 22, 19, .05), 0 12px 32px rgba(14, 22, 19, .08);
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Manrope", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a100d; --surface: #131b17; --surface-2: #1b2520; --ink: #eef5f0; --muted: #94a59c; --line: rgba(238, 245, 240, .1);
+    --grass: #3ddc6a; --grass-top: #4fd877; --dirt: #7a4f33; --dirt-dark: #5a3922; --sky: #5594ff; --gold: #ffc23d;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .35); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a100d; --surface: #131b17; --surface-2: #1b2520; --ink: #eef5f0; --muted: #94a59c; --line: rgba(238, 245, 240, .1);
+  --grass: #3ddc6a; --grass-top: #4fd877; --dirt: #7a4f33; --dirt-dark: #5a3922; --sky: #5594ff; --gold: #ffc23d;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .35); color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--body); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+a { color: inherit; }
+h1, h2, h3 { font-family: var(--display); letter-spacing: -.02em; line-height: 1.08; text-wrap: balance; margin: 0; }
+.wrap { max-width: 1160px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--grass); }
+.muted { color: var(--muted); }
+:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; border-radius: 8px; }
+
+/* Навигация */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(18px) saturate(1.6); border-bottom: 1px solid var(--line); }
+.nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.logo { display: flex; align-items: center; gap: 10px; font: 700 15px var(--display); text-decoration: none; }
+.logo img { width: 30px; height: 30px; border-radius: 8px; }
+.nav nav { display: flex; gap: 22px; margin-left: auto; font-weight: 600; font-size: 14px; }
+.nav nav a { text-decoration: none; color: var(--muted); }
+.nav nav a:hover { color: var(--ink); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 46px; padding: 0 22px; border-radius: 14px; font: 700 15px var(--body); text-decoration: none; border: 0; cursor: pointer; transition: transform .15s, filter .15s; }
+.btn:active { transform: scale(.97); }
+.btn-main { background: var(--grass); color: #fff; box-shadow: 0 8px 24px color-mix(in srgb, var(--grass) 40%, transparent); }
+.btn-main:hover { filter: brightness(1.06); }
+.btn-ghost { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.nav .btn { height: 38px; padding: 0 16px; font-size: 14px; border-radius: 11px; }
+
+/* Первый экран */
+.hero { position: relative; overflow: hidden; }
+#voxels { position: absolute; inset: 0; width: 100%; height: 100%; display: block; -webkit-mask-image: linear-gradient(90deg, transparent 0 38%, #000 62%); mask-image: linear-gradient(90deg, transparent 0 38%, #000 62%); }
+.hero .wrap { position: relative; padding-block: 88px 120px; display: grid; gap: 22px; justify-items: start; }
+.hero h1 { font-size: clamp(40px, 7vw, 84px); font-weight: 800; max-width: 11ch; }
+.hero h1 span { color: var(--grass); }
+.hero p.lead { font-size: clamp(17px, 2.2vw, 21px); max-width: 34ch; color: var(--muted); margin: 0; }
+.hero .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.range { font: 500 13px var(--mono); color: var(--muted); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.range code { background: var(--surface); padding: 4px 8px; border-radius: 7px; box-shadow: var(--shadow); color: var(--ink); }
+
+/* Экскурсия по лаунчеру */
+.tour { padding-block: 80px; }
+.tour-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 56px; align-items: start; }
+.steps { display: flex; flex-direction: column; gap: 22vh; padding-block: 8vh 20vh; }
+.step { transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+.step h3 { font-size: clamp(24px, 3vw, 34px); margin: 10px 0 12px; }
+.step p { margin: 0; color: var(--muted); max-width: 42ch; }
+.step ul { margin: 14px 0 0; padding-left: 18px; color: var(--muted); }
+.step.on { transform: translateX(6px); }
+.step.on .eyebrow { color: var(--sky); }
+.stage { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 96px); }
+
+.window { background: var(--surface); border-radius: 22px; box-shadow: 0 30px 80px rgba(14, 22, 19, .18); overflow: hidden; border: 1px solid var(--line); aspect-ratio: 16 / 11; max-width: 100%; display: grid; grid-template-columns: 30% 1fr; }
+.w-side { background: var(--surface-2); padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
+.w-dots { display: flex; gap: 6px; margin-bottom: 14px; }
+.w-dots i { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
+.w-dots i:nth-child(2) { background: #febc2e; } .w-dots i:nth-child(3) { background: #28c840; }
+.w-nav { padding: 7px 10px; border-radius: 8px; color: var(--muted); transition: background .3s, color .3s; }
+.w-nav.on { background: var(--sky); color: #fff; }
+.w-main { position: relative; padding: 18px; min-width: 0; }
+.panel { position: absolute; inset: 18px; display: flex; flex-direction: column; gap: 10px; transition: opacity .45s, transform .45s; }
+.panel:not(.on) { opacity: 0; transform: translateY(10px); pointer-events: none; }
+.panel h4 { margin: 0; font: 700 18px var(--display); }
+.vrow { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
+.vrow b { font-family: var(--mono); font-weight: 500; }
+.vrow .tag { margin-left: auto; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: var(--surface); }
+.vic { width: 22px; height: 22px; border-radius: 6px; background: var(--grass); flex-shrink: 0; }
+.vic.s { background: var(--gold); } .vic.a { background: var(--muted); }
+.skins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: 1; }
+.skins canvas { width: 100%; height: 100%; image-rendering: pixelated; background: var(--surface-2); border-radius: 10px; }
+.modgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mod { background: var(--surface-2); border-radius: 10px; padding: 8px; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+.mod i { width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; }
+.friend { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
+.friend .av { width: 26px; height: 26px; border-radius: 7px; }
+.friend .join { margin-left: auto; background: var(--sky); color: #fff; font-weight: 700; padding: 4px 10px; border-radius: 8px; font-size: 11px; }
+.chests { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1; }
+.chest { border-radius: 12px; color: #fff; padding: 10px; display: flex; flex-direction: column; justify-content: flex-end; font-size: 11.5px; font-weight: 700; }
+.chest span { font-size: 26px; }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.days div { background: var(--surface-2); border-radius: 8px; text-align: center; font: 500 11px var(--mono); padding: 6px 0; }
+.days div.today { outline: 2px solid var(--gold); }
+
+/* Функции плиткой */
+.facts { padding-block: 40px 90px; }
+.facts h2 { font-size: clamp(30px, 4.5vw, 52px); max-width: 16ch; margin-bottom: 36px; }
+.fact-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.fact { background: var(--surface); border-radius: 20px; padding: 22px; box-shadow: var(--shadow); min-width: 0; }
+.fact .k { font: 800 34px var(--display); color: var(--grass); letter-spacing: -.03em; }
+.fact h3 { font: 700 17px var(--body); letter-spacing: 0; margin: 6px 0 6px; }
+.fact p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+/* Тарифы */
+.pricing { padding-block: 90px; }
+.pricing h2 { font-size: clamp(30px, 4.5vw, 52px); margin-bottom: 12px; }
+.plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 34px; }
+.plan { border-radius: 26px; padding: 30px; background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.plan.pro { position: relative; overflow: hidden; color: #fff; background: linear-gradient(140deg, var(--pro-a), #ff3d77 45%, var(--pro-b)); box-shadow: 0 24px 60px color-mix(in srgb, var(--pro-b) 35%, transparent); }
+.plan.pro::after { content: ""; position: absolute; inset: -60%; background: conic-gradient(from 0deg, transparent, rgba(255, 255, 255, .18), transparent 25%); animation: spin 9s linear infinite; pointer-events: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.plan > * { position: relative; z-index: 1; }
+.plan h3 { font-size: 26px; }
+.price { font: 800 44px var(--display); letter-spacing: -.03em; }
+.price small { font: 600 15px var(--body); opacity: .75; letter-spacing: 0; }
+.price s { opacity: .6; font-size: 26px; margin-right: 8px; }
+.plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 15px; }
+.plan li { display: flex; gap: 10px; }
+.plan li::before { content: ""; width: 18px; height: 18px; flex-shrink: 0; margin-top: 3px; border-radius: 5px; background: var(--grass); box-shadow: inset 0 -5px 0 var(--dirt); }
+.plan.pro li::before { background: #fff; box-shadow: inset 0 -5px 0 rgba(255, 255, 255, .45); }
+.plan .note { font-size: 13px; opacity: .8; margin: 0; }
+.coinrow { display: flex; gap: 8px; align-items: center; font: 500 13px var(--mono); }
+.coin { width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6b0, #ffd23f 40%, #e09b00 75%); box-shadow: inset 0 0 0 1.5px #c98400; display: inline-block; }
+
+/* Блог */
+.blog { padding-block: 90px; }
+.blog h2 { font-size: clamp(30px, 4.5vw, 52px); margin-bottom: 30px; }
+.blog-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.post { background: var(--surface); border-radius: 22px; padding: 24px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.post .meta { display: flex; gap: 10px; align-items: center; font: 500 12px var(--mono); color: var(--muted); }
+.post .badge { font: 700 11px var(--body); padding: 3px 9px; border-radius: 99px; background: color-mix(in srgb, var(--grass) 16%, transparent); color: var(--grass); }
+.post .badge.soon { background: color-mix(in srgb, var(--sky) 16%, transparent); color: var(--sky); }
+.post h3 { font: 700 20px var(--body); letter-spacing: -.01em; }
+.post p { margin: 0; color: var(--muted); }
+.post ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 15px; }
+
+/* Скачать */
+.download { padding-block: 60px 100px; }
+.dl-card { border-radius: 30px; padding: clamp(28px, 5vw, 56px); background: var(--ink); color: var(--bg); display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 30px; align-items: center; position: relative; overflow: hidden; }
+.dl-card h2 { font-size: clamp(28px, 4vw, 46px); }
+.dl-card p { color: color-mix(in srgb, var(--bg) 70%, transparent); margin: 12px 0 0; }
+.dl-card .btns { display: flex; flex-direction: column; gap: 10px; }
+.dl-card .btn-ghost { background: color-mix(in srgb, var(--bg) 12%, transparent); color: var(--bg); box-shadow: none; }
+.dl-note { font: 500 12px var(--mono); color: color-mix(in srgb, var(--bg) 60%, transparent); }
+footer { border-top: 1px solid var(--line); padding-block: 28px 40px; font-size: 13px; color: var(--muted); }
+footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+
+@media (max-width: 860px) {
+  .nav nav { display: none; }
+  .tour-grid { grid-template-columns: 1fr; gap: 30px; }
+  .stage { position: relative; top: 0; order: -1; }
+  .steps { gap: 40px; padding-block: 0; }
+  .fact-grid, .plans, .blog-grid, .dl-card { grid-template-columns: 1fr; }
+  .hero .wrap { padding-block: 40px 300px; }
+  #voxels { -webkit-mask-image: linear-gradient(180deg, transparent 0 52%, #000 72%); mask-image: linear-gradient(180deg, transparent 0 52%, #000 72%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+}
+</style>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="logo" href="#top"><img src="icon.png" alt="">Rionina</a>
+    <nav aria-label="Разделы">
+      <a href="#tour">Возможности</a>
+      <a href="#pricing">Pro</a>
+      <a href="#blog">Блог</a>
+    </nav>
+    <a class="btn btn-main" href="#download">Скачать</a>
+  </div>
+</header>
+
+<section class="hero" id="top">
+  <canvas id="voxels" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <span class="eyebrow">Лаунчер Minecraft · Windows</span>
+    <h1>Весь Minecraft в <span>одном окне</span></h1>
+    <p class="lead">Любая версия Java, Bedrock, моды, шейдеры, скины и друзья. Нажали «Играть» — и вы в игре.</p>
+    <div class="cta">
+      <a class="btn btn-main" href="#download">Скачать бесплатно</a>
+      <a class="btn btn-ghost" href="#tour">Что внутри</a>
+    </div>
+    <div class="range">Все версии: <code>rd-132211</code> → <code>b1.7.3</code> → <code>1.8.9</code> → <code>1.21.1</code> → <code>26.3</code></div>
+  </div>
+</section>
+
+<section class="tour" id="tour">
+  <div class="wrap tour-grid">
+    <div class="steps">
+      <article class="step on" data-panel="versions">
+        <span class="eyebrow">Версии</span>
+        <h3>От первой сборки 2009 года до вчерашнего снапшота</h3>
+        <p>Выберите версию — лаунчер скачает игру, библиотеки и нужную Java сам. Установленная версия появляется в «Моих версиях», дальше — одна кнопка «Играть».</p>
+      </article>
+      <article class="step" data-panel="skins">
+        <span class="eyebrow">Скины</span>
+        <h3>Нарисуйте свой скин и сразу увидьте его в 3D</h3>
+        <p>Пиксельный редактор, 12 готовых скинов, загрузка PNG. С аккаунтом Microsoft скин уходит в профиль Minecraft и его видят все.</p>
+      </article>
+      <article class="step" data-panel="mods">
+        <span class="eyebrow">Моды и шейдеры</span>
+        <h3>Каталог Modrinth прямо в лаунчере</h3>
+        <p>Сборка Fabric создаётся в один клик, зависимости ставятся сами. Для шейдеров лаунчер добавит Iris и Sodium и включит шейдер.</p>
+      </article>
+      <article class="step" data-panel="friends">
+        <span class="eyebrow">Друзья</span>
+        <h3>Откройте мир — друзья зайдут через вас</h3>
+        <p>Добавляйте друзей по нику. Нажмите «Разрешить для друзей», и у них появится кнопка «Зайти»: лаунчер сам поставит ту же версию и те же моды.</p>
+      </article>
+      <article class="step" data-panel="chests">
+        <span class="eyebrow">Сундуки</span>
+        <h3>Монеты каждый день, сундуки за монеты</h3>
+        <p>Заходите каждый день подряд — награда растёт с 50 до 200 Rionina Coins. В сундуках редкие скины и эффекты за спиной: молния, портал, галактика.</p>
+      </article>
+    </div>
+
+    <div class="stage" aria-hidden="true">
+      <div class="window">
+        <div class="w-side">
+          <div class="w-dots"><i></i><i></i><i></i></div>
+          <div class="w-nav on" data-nav="versions">Версии</div>
+          <div class="w-nav" data-nav="skins">Скины</div>
+          <div class="w-nav" data-nav="mods">Моды</div>
+          <div class="w-nav" data-nav="friends">Друзья</div>
+          <div class="w-nav" data-nav="chests">Сундуки</div>
+        </div>
+        <div class="w-main">
+          <div class="panel on" data-panel="versions">
+            <h4>Версии</h4>
+            <div class="vrow"><i class="vic"></i><b>26.3</b><span class="tag">Новая</span></div>
+            <div class="vrow"><i class="vic"></i><b>1.21.1</b><span class="tag">✓ Установлена</span></div>
+            <div class="vrow"><i class="vic s"></i><b>26w14a</b><span class="tag">Снапшот</span></div>
+            <div class="vrow"><i class="vic"></i><b>1.8.9</b><span class="tag">Установить</span></div>
+            <div class="vrow"><i class="vic a"></i><b>b1.7.3</b><span class="tag">Beta</span></div>
+            <div class="vrow"><i class="vic a"></i><b>rd-132211</b><span class="tag">2009</span></div>
+          </div>
+          <div class="panel" data-panel="skins">
+            <h4>Скины</h4>
+            <div class="skins"><canvas width="16" height="32"></canvas><canvas width="16" height="32"></canvas><canvas width="16" height="32"></canvas><canvas width="16" height="32"></canvas></div>
+          </div>
+          <div class="panel" data-panel="mods">
+            <h4>Моды</h4>
+            <div class="modgrid">
+              <div class="mod"><i style="background:#2a9d8f"></i>Sodium</div>
+              <div class="mod"><i style="background:#e9c46a"></i>Fabric API</div>
+              <div class="mod"><i style="background:#8338ec"></i>Iris Shaders</div>
+              <div class="mod"><i style="background:#3a86ff"></i>Lithium</div>
+              <div class="mod"><i style="background:#06d6a0"></i>Мини-карта</div>
+              <div class="mod"><i style="background:#ef476f"></i>AppleSkin</div>
+            </div>
+          </div>
+          <div class="panel" data-panel="friends">
+            <h4>Друзья</h4>
+            <div class="friend"><i class="av" style="background:#2a9d8f"></i>Kirill_08 · открыл мир<span class="join">Зайти</span></div>
+            <div class="friend"><i class="av" style="background:#e76f51"></i>Masha · играет в 1.21.1</div>
+            <div class="friend"><i class="av" style="background:#8338ec"></i>Tim_Craft · в лаунчере</div>
+          </div>
+          <div class="panel" data-panel="chests">
+            <h4>Сундуки</h4>
+            <div class="days"><div>50</div><div>60</div><div class="today">70</div><div>80</div><div>100</div><div>120</div><div>200</div></div>
+            <div class="chests">
+              <div class="chest" style="background:linear-gradient(140deg,#34c759,#0a84ff)"><span>📦</span>100</div>
+              <div class="chest" style="background:linear-gradient(140deg,#5e5ce6,#bf5af2)"><span>⚡</span>200</div>
+              <div class="chest" style="background:linear-gradient(140deg,#ff9f0a,#ff375f)"><span>👑</span>500</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="facts">
+  <div class="wrap">
+    <h2>Всё, что нужно, уже настроено</h2>
+    <div class="fact-grid">
+      <div class="fact"><div class="k">700+</div><h3>версий Java Edition</h3><p>Релизы, снапшоты, Beta и Alpha — список берётся с серверов Mojang.</p></div>
+      <div class="fact"><div class="k">Java 8–21</div><h3>ставится сама</h3><p>Лаунчер скачивает ту Java, что нужна выбранной версии.</p></div>
+      <div class="fact"><div class="k">Bedrock</div><h3>на ПК и телефоне</h3><p>На Windows ставится из Microsoft Store автоматически.</p></div>
+      <div class="fact"><div class="k">ID</div><h3>ник под паролем</h3><p>Rionina ID защищает ваш ник: зайти под ним без пароля нельзя.</p></div>
+      <div class="fact"><div class="k">7</div><h3>тем оформления</h3><p>Светлая, тёмная, Океан, Закат, Неон — или фон из вашей галереи.</p></div>
+      <div class="fact"><div class="k">12</div><h3>эффектов за спиной</h3><p>Выпадают из сундуков и играют позади вашего персонажа.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="pricing" id="pricing">
+  <div class="wrap">
+    <span class="eyebrow">Тарифы</span>
+    <h2>Rionina Pro</h2>
+    <p class="muted">Лаунчер бесплатный навсегда. Pro добавляет удобства — и пока тоже бесплатен.</p>
+    <div class="plans">
+      <div class="plan">
+        <h3>Обычный</h3>
+        <div class="price">$0</div>
+        <ul>
+          <li>Все версии Java и Bedrock</li>
+          <li>Моды, шейдеры, ресурс-паки</li>
+          <li>До 10 друзей</li>
+          <li>Сундуки за Rionina Coins</li>
+          <li>Ежедневная награда 50–200 монет</li>
+          <li>12 готовых скинов и редактор</li>
+        </ul>
+        <div class="coinrow"><i class="coin"></i> 100 · 200 · 500 — цены сундуков</div>
+      </div>
+      <div class="plan pro">
+        <h3>Pro</h3>
+        <div class="price"><s>$10</s>$0 <small>пока бесплатно</small></div>
+        <ul>
+          <li>Сундуки открываются бесплатно</li>
+          <li>Ежедневная награда ×2</li>
+          <li>До 50 друзей</li>
+          <li>6 эксклюзивных Pro-скинов</li>
+          <li>Больше FPS: Sodium, Lithium, FerriteCore, ImmediatelyFast, ModernFix</li>
+          <li>Быстрее загрузка: вдвое больше потоков и настроенная Java</li>
+        </ul>
+        <p class="note">Включается в лаунчере: вкладка «Rionina Pro».</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="blog" id="blog">
+  <div class="wrap">
+    <span class="eyebrow">Блог</span>
+    <h2>Новости Rionina</h2>
+    <div class="blog-grid" id="posts"></div>
+  </div>
+</section>
+
+<section class="download" id="download">
+  <div class="wrap">
+    <div class="dl-card">
+      <div>
+        <h2>Скачайте Rionina Launcher</h2>
+        <p>Один файл для Windows 10 и 11 — открывается двойным щелчком, установка не нужна.</p>
+      </div>
+      <div class="btns">
+        <a class="btn btn-main" id="dlBtn" href="#download">Скачать для Windows</a>
+        <a class="btn btn-ghost" href="#pricing">Посмотреть Pro</a>
+        <span class="dl-note" id="dlNote">Версия 1.3 · ~88 МБ</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Rionina Launcher · rioninalauncher.com</span>
+    <span>Не связан с Mojang или Microsoft. Minecraft — товарный знак Mojang AB.</span>
+  </div>
+</footer>
+
+<script id="news" type="application/json">
+[
+  { "date": "2026-11-17", "tag": "Вышло", "title": "Rionina 1.3: друзья, Rionina ID и сундуки", "text": "Аккаунт с паролем защищает ваш ник. Появились друзья и игра в одном мире, ежедневные награды, Rionina Coins и Pro.", "items": ["Вход по нику и паролю", "Друзья и кнопка «Зайти» в мир друга", "Сундуки за монеты и ежедневная награда", "Rionina Pro — пока бесплатно"] },
+  { "date": "2026-11-17", "tag": "Вышло", "title": "Rionina 1.2: скины, моды и шейдеры", "text": "3D-скины с редактором, каталог Modrinth, сборки Fabric в один клик, свои ресурс-паки, темы и фон из галереи.", "items": ["Редактор скинов", "Моды, шейдеры, ресурс-паки", "Несколько аккаунтов", "7 тем оформления"] },
+  { "date": "2026-12", "tag": "Скоро", "title": "Rionina для Android", "text": "Новости, серверы и запуск Minecraft Bedrock в одно касание — версия для телефона уже в работе.", "items": [] },
+  { "date": "2027", "tag": "В планах", "title": "Что добавим дальше", "text": "Мы собираем идеи игроков. Вот что уже в списке:", "items": ["Оплата Rionina Pro", "Forge и NeoForge", "Синхронизация скинов и коллекции между компьютерами", "Свои серверы Rionina"] }
+]
+</script>
+
+<script>
+(() => {
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ───── Воксельный пейзаж на первом экране ─────
+  const cv = document.getElementById('voxels');
+  const ctx = cv.getContext('2d');
+  const rnd = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const height = (x, y) => Math.max(0, Math.round(2.2 + Math.sin(x * .45) * 1.3 + Math.cos(y * .5 + x * .2) * 1.2 + rnd(x, y) * .8));
+  let W = 0, H = 0, t0 = performance.now();
+  function size() {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function shade(hex, k) {
+    const n = parseInt(hex.replace('#', ''), 16);
+    const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.max(0, Math.min(255, Math.round(v * k))));
+    return `rgb(${c.join(',')})`;
+  }
+  function cube(x, y, s, top, side, sideDark) {
+    const h = s / 2;
+    ctx.fillStyle = top;
+    ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x + s, y); ctx.lineTo(x, y + h); ctx.lineTo(x - s, y); ctx.fill();
+    ctx.fillStyle = side;
+    ctx.beginPath(); ctx.moveTo(x - s, y); ctx.lineTo(x, y + h); ctx.lineTo(x, y + h + s); ctx.lineTo(x - s, y + s); ctx.fill();
+    ctx.fillStyle = sideDark;
+    ctx.beginPath(); ctx.moveTo(x + s, y); ctx.lineTo(x, y + h); ctx.lineTo(x, y + h + s); ctx.lineTo(x + s, y + s); ctx.fill();
+  }
+  function draw(now) {
+    const t = (now - t0) / 1000;
+    ctx.clearRect(0, 0, W, H);
+    const narrow = W < 860;
+    const s = narrow ? Math.max(12, W / 34) : Math.max(16, Math.min(28, W / 50));
+    const cols = 16, rows = 16;
+    const ox = W * (narrow ? .5 : .78), oy = narrow ? H * .62 : H * .16;
+    const grass = css('--grass-top'), dirt = css('--dirt'), dirtDark = css('--dirt-dark');
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const hgt = height(x, y);
+        // Волна «строительства» на загрузке и лёгкое дыхание после
+        const delay = (x + y) * .05;
+        const grow = reduce ? 1 : Math.min(1, Math.max(0, (t - delay) / .6));
+        const ease = 1 - Math.pow(1 - grow, 3);
+        const bob = reduce ? 0 : Math.sin(t * 1.2 + x * .6 + y * .4) * 1.5;
+        const px = ox + (x - y) * s, py = oy + (x + y) * s / 2;
+        for (let z = 0; z <= hgt; z++) {
+          const lift = (1 - ease) * 60;
+          const top = z === hgt ? shade(grass, .92 + rnd(x + z, y) * .16) : shade(dirt, 1.05);
+          cube(px, py - z * s + lift + bob, s, top, shade(z === hgt ? dirt : dirt, .95), shade(dirtDark, .95));
+        }
+      }
+    }
+    if (!reduce) requestAnimationFrame(draw);
+  }
+  size();
+  addEventListener('resize', () => { size(); if (reduce) draw(performance.now()); });
+  requestAnimationFrame(draw);
+
+  // ───── Экскурсия: окно лаунчера меняется по мере прокрутки ─────
+  const steps = [...document.querySelectorAll('.step')];
+  const show = (key) => {
+    steps.forEach((s) => s.classList.toggle('on', s.dataset.panel === key));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('on', p.dataset.panel === key));
+    document.querySelectorAll('.w-nav').forEach((n) => n.classList.toggle('on', n.dataset.nav === key));
+  };
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) show(e.target.dataset.panel);
+  }, { rootMargin: '-45% 0px -45% 0px' });
+  steps.forEach((s) => io.observe(s));
+
+  // Мини-скины в окне
+  const palettes = [['#c99a76', '#4a2f1b', '#2a9d8f', '#264653'], ['#f1c7a5', '#b5432a', '#4c8c4a', '#6b4f3a'], ['#e0b48f', '#1c1c1c', '#1f1f24', '#2b2b33'], ['#f6d2b8', '#f2d16b', '#ff8fc0', '#e46aa6']];
+  document.querySelectorAll('.skins canvas').forEach((c, i) => {
+    const [skin, hair, shirt, pants] = palettes[i];
+    const g = c.getContext('2d');
+    const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    r(skin, 4, 0, 8, 8); r(hair, 4, 0, 8, 2); r('#fff', 5, 4, 1, 1); r('#335', 6, 4, 1, 1); r('#335', 9, 4, 1, 1); r('#fff', 10, 4, 1, 1);
+    r(shirt, 4, 8, 8, 12); r(shirt, 0, 8, 4, 4); r(shirt, 12, 8, 4, 4); r(skin, 0, 12, 4, 8); r(skin, 12, 12, 4, 8);
+    r(pants, 4, 20, 8, 9); r('#2b2b2b', 4, 29, 8, 3);
+  });
+
+  // ───── Блог ─────
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : d;
+  function renderPosts(list) {
+    document.getElementById('posts').innerHTML = list.map((p) => `
+      <article class="post">
+        <div class="meta"><span class="badge ${p.tag === 'Вышло' ? '' : 'soon'}">${esc(p.tag)}</span>${esc(fmt(p.date))}</div>
+        <h3>${esc(p.title)}</h3>
+        <p>${esc(p.text)}</p>
+        ${p.items && p.items.length ? `<ul>${p.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
+      </article>`).join('');
+  }
+  try { renderPosts(JSON.parse(document.getElementById('news').textContent)); } catch (e) { /* без блога */ }
+
+  // На настоящем сервере берём свежие новости и включаем кнопку загрузки
+  fetch('/api/health').then((r) => r.ok && r.json()).then((h) => {
+    if (!h || h.name !== 'Rionina') return;
+    document.getElementById('dlBtn').href = '/download';
+    fetch('/api/news').then((r) => r.json()).then((n) => Array.isArray(n) && n.length && renderPosts(n)).catch(() => {});
+  }).catch(() => {
+    document.getElementById('dlNote').textContent = 'Ссылка на загрузку заработает на rioninalauncher.com';
+  });
+})();
+</script>

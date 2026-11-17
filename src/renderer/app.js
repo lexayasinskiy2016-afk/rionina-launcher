@@ -50,6 +50,7 @@ function showLogin(adding = false) {
   $('#login').classList.remove('hidden');
   $('#loginError').textContent = '';
   $('#loginBack').classList.toggle('hidden', !(adding && st.account));
+  document.querySelector('#authSeg [data-v="login"]').click();
 }
 
 function showMain() {
@@ -80,13 +81,38 @@ $('#btnMicrosoft').addEventListener('click', async (e) => {
   }
 });
 
-$('#offlineForm').addEventListener('submit', async (e) => {
+// Rionina ID: вход и регистрация по нику и паролю
+let authMode = 'login';
+$$('#authSeg button').forEach((b) => b.addEventListener('click', () => {
+  authMode = b.dataset.v;
+  $$('#authSeg button').forEach((x) => x.classList.toggle('active', x === b));
+  $('#password2').classList.toggle('hidden', authMode !== 'register');
+  $('#password').autocomplete = authMode === 'register' ? 'new-password' : 'current-password';
+  $('#rioninaSubmit').textContent = authMode === 'register' ? 'Создать аккаунт' : 'Войти в Rionina ID';
+  $('#loginError').textContent = '';
+}));
+
+$('#rioninaForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const nick = $('#nick').value.trim();
+  const password = $('#password').value;
+  $('#loginError').textContent = '';
+  if (authMode === 'register' && password !== $('#password2').value) {
+    $('#loginError').textContent = 'Пароли не совпадают';
+    return;
+  }
+  const btn = $('#rioninaSubmit');
+  btn.disabled = true;
   try {
-    st.account = await R.account.offline($('#nick').value);
+    st.account = await R.account.rionina({ mode: authMode, nick, password });
+    $('#password').value = '';
+    $('#password2').value = '';
     showMain();
+    if (st.account.type === 'local') toast('Сервер Rionina недоступен — аккаунт защищён паролем на этом компьютере. Друзья появятся, когда сервер заработает.', 7000);
   } catch (err) {
     $('#loginError').textContent = err.message;
+  } finally {
+    btn.disabled = false;
   }
 });
 
@@ -96,10 +122,12 @@ $('#btnLogout').addEventListener('click', async () => {
   if (next) { renderAccount(); toast(`Вы вошли как ${next.name}`); } else showLogin();
 });
 
+const ACC_TYPES = { microsoft: 'Аккаунт Microsoft', rionina: 'Rionina ID', local: 'Rionina ID · локально', offline: 'Офлайн без пароля' };
+
 function renderAccount() {
   const a = st.account;
   $('#accName').textContent = a.name;
-  $('#accType').textContent = a.type === 'microsoft' ? 'Аккаунт Microsoft' : 'Офлайн';
+  $('#accType').textContent = ACC_TYPES[a.type] || 'Офлайн';
   const av = $('#avatar');
   if (a.type === 'microsoft') {
     av.textContent = '';
@@ -109,6 +137,7 @@ function renderAccount() {
     av.textContent = a.name[0].toUpperCase();
   }
   updateProfileVisuals();
+  refreshMe();
 }
 
 // ───────────── Навигация ─────────────

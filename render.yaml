@@ -1,0 +1,22 @@
+# Сервер Rionina + сайт rioninalauncher.com на Render.com (Blueprint)
+services:
+  - type: web
+    name: rionina
+    runtime: node
+    rootDir: server
+    plan: starter
+    buildCommand: echo "Без зависимостей"
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      # Прямая ссылка на RioninaLauncher.exe (например, из релиза GitHub)
+      - key: DOWNLOAD_URL
+        sync: false
+    disk:
+      name: rionina-data
+      mountPath: /var/data
+      sizeGB: 1
+    domains:
+      - rioninalauncher.com

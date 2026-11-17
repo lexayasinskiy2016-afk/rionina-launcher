@@ -104,7 +104,7 @@ async function renderAccounts() {
   for (const a of list) {
     const row = document.createElement('div');
     row.className = 'acc-row';
-    row.innerHTML = `<canvas></canvas><div class="meta"><strong>${esc(a.name)}</strong><span>${a.type === 'microsoft' ? 'Microsoft' : 'Офлайн'}</span></div>
+    row.innerHTML = `<canvas></canvas><div class="meta"><strong>${esc(a.name)}</strong><span>${ACC_TYPES[a.type] || 'Офлайн'}</span></div>
       ${a.active ? '<span class="badge-active">● Активный</span>' : '<button class="btn btn-secondary btn-sm" data-sw>Войти</button>'}
       <button class="icon-btn" data-rm title="Удалить"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
     accountHead(a, row.querySelector('canvas'));
@@ -139,16 +139,7 @@ $('#btnAddMs').addEventListener('click', async () => {
     if (!/cancel|closed|error\.gui/i.test(e.message)) toast(e.message);
   }
 });
-$('#addOffline').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  try {
-    st.account = await R.account.offline($('#addNick').value);
-    $('#addNick').value = '';
-    renderAccount();
-    renderAccounts();
-    toast(`Добавлен аккаунт ${st.account.name}`);
-  } catch (er) { toast(er.message); }
-});
+$('#btnAddRionina').addEventListener('click', () => showLogin(true));
 
 // Быстрое переключение по клику на аккаунт в боковой панели
 $('#accountChip').addEventListener('click', async (e) => {

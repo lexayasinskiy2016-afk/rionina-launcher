@@ -8,6 +8,8 @@ const news = require('./core/news');
 const bedrock = require('./core/bedrock');
 const modrinth = require('./core/modrinth');
 const packs = require('./core/packs');
+const { RioninaApi, Economy, authRionina, DEFAULT_SERVER } = require('./core/rionina');
+const mp = require('./core/multiplayer');
 
 const ROOT = path.join(app.getPath('appData'), '.rionina');
 const USER = app.getPath('userData');
@@ -22,7 +24,7 @@ let game = null; // запущенный процесс игры
 const DEFAULTS = {
   memory: 4096, fullscreen: false, closeOnLaunch: false, selectedVersion: null,
   autoBedrock: true, bedrockAutoDone: false,
-  accounts: [], activeUuid: null,
+  accounts: [], activeUuid: null, server: DEFAULT_SERVER, eco: {},
   // Данные интерфейса: скины, коллекция из кейсов, тема
   skins: [], profiles: {}, collection: { effects: [], skins: [] }, theme: { mode: 'system', preset: 'default', accent: null, bg: false }, stats: { cases: 0 },
 };
@@ -40,6 +42,10 @@ function load() {
       raw.accounts = [a];
       raw.activeUuid = a.uuid;
     }
+    if (raw.localCredsEnc && safeStorage.isEncryptionAvailable()) {
+      raw.localCreds = JSON.parse(safeStorage.decryptString(Buffer.from(raw.localCredsEnc, 'base64')));
+    }
+    delete raw.localCredsEnc;
     delete raw.accountsEnc;
     delete raw.accountEnc;
     delete raw.account;
@@ -54,11 +60,18 @@ function save() {
   const out = { ...state };
   if (safeStorage.isEncryptionAvailable()) {
     out.accountsEnc = safeStorage.encryptString(JSON.stringify(out.accounts)).toString('base64');
+    out.localCredsEnc = safeStorage.encryptString(JSON.stringify(out.localCreds || [])).toString('base64');
     delete out.accounts;
+    delete out.localCreds;
   }
   fs.mkdirSync(path.dirname(DATA), { recursive: true });
   fs.writeFileSync(DATA, JSON.stringify(out, null, 2));
 }
+
+const api = new RioninaApi(() => state.server || DEFAULT_SERVER);
+const economy = new Economy(api, state, () => save());
+const proCache = new Map(); // uuid → Pro (из последнего ответа сервера)
+const isPro = (acc) => !!acc && !!proCache.get(acc.uuid);
 
 const active = () => state.accounts.find((a) => a.uuid === state.activeUuid) || null;
 const publicAccount = (a) => a && { type: a.type, name: a.name, uuid: a.uuid };
@@ -145,7 +158,18 @@ handle('account:get', async () => {
 });
 handle('account:list', () => state.accounts.map((a) => ({ ...publicAccount(a), active: a.uuid === state.activeUuid })));
 handle('account:microsoft', async () => upsertAccount(await auth.loginMicrosoft()));
-handle('account:offline', (name) => upsertAccount(auth.loginOffline(name)));
+// Аккаунт Rionina: ник + пароль (сервер Rionina, а без него — локально с паролем)
+handle('account:rionina', async (params) => upsertAccount(await authRionina(api, params, [...state.accounts, ...(state.localCreds || [])])));
+
+// При выходе локальный пароль остаётся на компьютере, чтобы можно было войти снова
+function forget(acc) {
+  if (!acc) return;
+  if (acc.type === 'local') {
+    state.localCreds = (state.localCreds || []).filter((c) => c.uuid !== acc.uuid);
+    state.localCreds.push(acc);
+  }
+  if (acc.type === 'rionina') api.call('POST', '/auth/logout', {}, acc.token).catch(() => {});
+}
 handle('account:switch', (uuid) => {
   if (!state.accounts.some((a) => a.uuid === uuid)) throw new Error('Аккаунт не найден');
   state.activeUuid = uuid;
@@ -153,12 +177,14 @@ handle('account:switch', (uuid) => {
   return publicAccount(active());
 });
 handle('account:remove', (uuid) => {
+  forget(state.accounts.find((a) => a.uuid === uuid));
   state.accounts = state.accounts.filter((a) => a.uuid !== uuid);
   if (state.activeUuid === uuid) state.activeUuid = state.accounts[0]?.uuid || null;
   save();
   return publicAccount(active());
 });
 handle('account:logout', () => {
+  forget(active());
   state.accounts = state.accounts.filter((a) => a.uuid !== state.activeUuid);
   state.activeUuid = state.accounts[0]?.uuid || null;
   save();
@@ -168,10 +194,15 @@ handle('account:logout', () => {
 // ───────────── Настройки и данные интерфейса ─────────────
 
 handle('settings:get', () => {
-  const { accounts, ...rest } = state;
+  const { accounts, localCreds, eco, ...rest } = state;
   return { ...rest, totalMemory: Math.floor(require('os').totalmem() / 1024 / 1024), root: ROOT };
 });
 handle('settings:set', (patch) => {
+  if ('server' in patch) {
+    const url = String(patch.server || '').trim() || DEFAULT_SERVER;
+    if (!/^https?:\/\/[\w.-]+(:\d+)?\/?$/.test(url)) throw new Error('Адрес сервера вида https://rioninalauncher.com');
+    state.server = url.replace(/\/$/, '');
+  }
   for (const k of ['memory', 'fullscreen', 'closeOnLaunch', 'selectedVersion', 'autoBedrock', ...UI_KEYS]) if (k in patch) state[k] = patch[k];
   save();
 });
@@ -339,11 +370,16 @@ handle('packs:installOwn', async ({ packId, versionId }) => {
 
 // ───────────── Запуск Java Edition ─────────────
 
-handle('game:launch', async (id) => {
+// ───────────── Запуск игры ─────────────
+
+let hosting = null; // { versionId, gameVersion, mods, address }
+
+async function launchGame(id, { join = null, host = false } = {}) {
   if (game) throw new Error('Игра уже запущена');
   const acc = active();
   if (!acc) throw new Error('Сначала войдите в аккаунт');
   await refreshIfNeeded(acc, true);
+  mc.concurrency = isPro(acc) ? 48 : 24;
 
   // Проверяем всю цепочку: сборка Fabric + обычная версия под ней
   if (!(await mc.isInstalled(id))) {
@@ -353,27 +389,45 @@ handle('game:launch', async (id) => {
   state.selectedVersion = id;
   save();
 
-  // Офлайн-скин: подменяем стандартные скины через ресурс-пак
+  // Скин без Microsoft: подменяем стандартные скины через ресурс-пак
   const gameDir = await mc.gameDir(id);
   const skin = state.skins.find((s) => s.id === state.profiles[acc.uuid]?.skinId);
-  if (acc.type === 'offline' && skin) await packs.writeSkinPack(gameDir, pngFromDataUrl(skin.data)).catch(() => {});
+  if (acc.type !== 'microsoft' && skin) await packs.writeSkinPack(gameDir, pngFromDataUrl(skin.data)).catch(() => {});
   else await packs.removeSkinPack(gameDir).catch(() => {});
 
+  const installed = (await mc.listInstalled()).find((v) => v.id === id);
+  if (host) hosting = { versionId: id, gameVersion: installed?.gameVersion || id, loader: installed?.loader || null, mods: await mp.modList(mc, id).catch(() => []), address: null };
+
   send('game:state', { state: 'starting', id });
-  game = await mc.launch(id, acc, state, {
-    onLog: (line) => send('game:log', line),
+  game = await mc.launch(id, acc, { ...state, pro: isPro(acc), join }, {
+    onLog: (line) => {
+      send('game:log', line);
+      if (hosting && !hosting.address) {
+        const address = mp.findAddress(line);
+        if (address) {
+          hosting.address = address;
+          send('friends:hosting', { address });
+          heartbeat();
+        }
+      }
+    },
     onExit: (code) => {
       game = null;
+      if (hosting) { hosting = null; send('friends:hosting', null); }
       send('game:state', { state: 'closed', id, code });
+      heartbeat();
       if (state.closeOnLaunch && win) win.show();
     },
   });
+  heartbeat();
   setTimeout(() => {
     if (!game) return;
     send('game:state', { state: 'running', id });
-    if (state.closeOnLaunch) win.hide();
+    if (state.closeOnLaunch && !host) win.hide();
   }, 2500);
-});
+}
+
+handle('game:launch', (id) => launchGame(id));
 handle('game:stop', () => { if (game) game.kill(); });
 
 // ───────────── Bedrock ─────────────
@@ -403,3 +457,74 @@ async function autoInstallBedrock() {
   if (!s.installed) installBedrock();
 }
 handle('bedrock:auto', () => { autoInstallBedrock(); });
+
+// ───────────── Rionina Coins, сундуки, Pro ─────────────
+
+async function meFor(acc) {
+  const me = await economy.me(acc);
+  proCache.set(acc.uuid, !!me.pro);
+  return me;
+}
+const needAcc = () => { const a = active(); if (!a) throw new Error('Нет аккаунта'); return a; };
+handle('eco:me', () => meFor(needAcc()));
+handle('eco:daily', async () => { const r = await economy.daily(needAcc()); proCache.set(needAcc().uuid, !!r.me.pro); return r; });
+handle('eco:chest', async (chest) => economy.openChest(needAcc(), chest));
+handle('eco:pro', async () => { const me = await economy.activatePro(needAcc()); proCache.set(needAcc().uuid, !!me.pro); return me; });
+handle('pro:boost', async (versionId) => {
+  if (!isPro(needAcc())) throw new Error('Ускорение доступно в Rionina Pro');
+  return mp.boostBuild(mc, versionId);
+});
+
+// ───────────── Друзья ─────────────
+
+const friendsCall = async (method, p, body) => {
+  try {
+    return await economy.server(needAcc(), method, p, body);
+  } catch (e) {
+    if (e.name === 'Error' && e.status) throw e;
+    const acc = active();
+    throw new Error(acc?.type === 'offline'
+      ? 'Друзья работают с Rionina ID (ник + пароль) или Microsoft — добавьте такой аккаунт в Настройках'
+      : 'Сервер Rionina пока не запущен — друзья заработают, когда он появится. Аккаунт перенесётся на сервер при следующем входе с паролем.');
+  }
+};
+handle('friends:list', () => friendsCall('GET', '/friends'));
+handle('friends:request', (nick) => friendsCall('POST', '/friends/request', { nick }));
+handle('friends:accept', (nick) => friendsCall('POST', '/friends/accept', { nick }));
+handle('friends:decline', (nick) => friendsCall('POST', '/friends/decline', { nick }));
+handle('friends:remove', (nick) => friendsCall('POST', '/friends/remove', { nick }));
+handle('friends:hostState', () => (hosting ? { address: hosting.address, gameVersion: hosting.gameVersion } : null));
+
+// Открыть свой мир для друзей
+handle('friends:host', async (gameVersion) => {
+  const acc = needAcc();
+  const versionId = await mp.prepareHost(mc, gameVersion, { pro: isPro(acc) }, (p) => send('install:progress', { id: gameVersion, ...p }));
+  send('install:state', { id: gameVersion, state: 'done' });
+  await launchGame(versionId, { host: true });
+  return versionId;
+});
+
+// Зайти в мир друга
+handle('friends:join', async (nick) => {
+  const acc = needAcc();
+  const list = await friendsCall('GET', '/friends');
+  const f = list.friends.find((x) => x.nick.toLowerCase() === String(nick).toLowerCase());
+  if (!f?.shared?.address) throw new Error(`${nick} сейчас не открыл мир для друзей`);
+  const versionId = await mp.prepareJoin(mc, f.shared, { pro: isPro(acc) }, (p) => send('install:progress', { id: f.shared.gameVersion, ...p }));
+  send('install:state', { id: f.shared.gameVersion, state: 'done' });
+  await launchGame(versionId, { join: f.shared.address });
+});
+
+// Статус для друзей: раз в минуту и при каждом изменении
+async function heartbeat() {
+  const acc = active();
+  if (!acc || !['rionina', 'microsoft'].includes(acc.type)) return;
+  const body = {
+    status: game ? 'playing' : 'online',
+    playing: game ? { gameVersion: hosting?.gameVersion || state.selectedVersion } : null,
+    shared: hosting?.address ? { address: hosting.address, gameVersion: hosting.gameVersion, loader: hosting.loader, mods: hosting.mods, world: 'Мир' } : null,
+  };
+  await economy.server(acc, 'POST', '/presence', body).catch(() => {});
+}
+setInterval(heartbeat, 60_000);
+app.whenReady().then(() => setTimeout(heartbeat, 3000));

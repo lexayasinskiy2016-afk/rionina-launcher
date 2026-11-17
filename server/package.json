@@ -1,0 +1,9 @@
+{
+  "name": "rionina-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Сервер Rionina: аккаунты, друзья, монеты, Pro и сайт rioninalauncher.com",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" }
+}

@@ -174,6 +174,16 @@ const CASE_SKINS = [
   { key: 'shadow', name: 'Тень', rarity: 'rare', spec: { skin: '#2a2a33', hair: '#111', hairStyle: 'bald', eyes: '#ff2d55', shirt: '#22222b', pants: '#1a1a22', shoes: '#0b0b0f', fx: 'shadow', extra: 'mask', seed: 37 } },
   { key: 'samurai', name: 'Самурай', rarity: 'rare', spec: { skin: '#d9a77f', hair: '#111', shirt: '#9b1c1c', shirt2: '#f2c94c', pattern: 'armor', pants: '#2b2b2b', shoes: '#111', belt: '#f2c94c', seed: 38 } },
 ];
+// Эксклюзивные скины Rionina Pro
+const PRO_SKINS = [
+  { key: 'pro_dragon', name: 'Драконий лорд', spec: { skin: '#c99a76', hair: '#5a0f1f', shirt: '#7a1020', shirt2: '#f2c94c', pattern: 'armor', extra: 'helmet', pants: '#3a0810', shoes: '#f2c94c', fx: 'fire', seed: 51 } },
+  { key: 'pro_cyber', name: 'Кибер-самурай', spec: { skin: '#d9a77f', hair: '#00fff0', eyes: '#ff00c8', shirt: '#101020', pattern: 'jacket', shirt2: '#00fff0', pants: '#101020', shoes: '#ff00c8', fx: 'neon', extra: 'visor', seed: 52 } },
+  { key: 'pro_frost', name: 'Морозный маг', spec: { skin: '#e8f4ff', hair: '#ffffff', hairStyle: 'long', eyes: '#00b4ff', shirt: '#3a6ea5', shirt2: '#cfe8ff', pattern: 'hoodie', pants: '#2a4d75', shoes: '#cfe8ff', fx: 'ice', seed: 53 } },
+  { key: 'pro_royal', name: 'Королева Rionina', spec: { skin: '#f6d2b8', hair: '#f2c94c', hairStyle: 'long', eyes: '#7b2ff7', shirt: '#7b2ff7', shirt2: '#f2c94c', pattern: 'stripes', pants: '#4b1ba1', shoes: '#f2c94c', seed: 54, model: 'slim' } },
+  { key: 'pro_void', name: 'Странник Пустоты', spec: { skin: '#1a1030', hair: '#05030c', hairStyle: 'bald', eyes: '#c77dff', shirt: '#1a1030', pants: '#120a24', shoes: '#05030c', fx: 'galaxy', extra: 'mask', seed: 55 } },
+  { key: 'pro_jade', name: 'Нефритовый воин', spec: { skin: '#b9875f', hair: '#0a3d24', shirt: '#1aa260', shirt2: '#f2c94c', pattern: 'armor', pants: '#0f7a46', shoes: '#f2c94c', fx: 'emerald', belt: '#f2c94c', seed: 56 } },
+];
+
 for (const s of READY_SKINS) if (s.spec.extraBeard) s.spec.extra = s.spec.extra || 'beard';
 
 const skinCache = new Map();
@@ -344,6 +354,14 @@ function renderMySkins() {
 function renderReadySkins() {
   const box = $('#readySkins');
   box.innerHTML = '';
+  const pro = !!st.me?.pro;
+  for (const item of PRO_SKINS) {
+    const data = presetData(item);
+    const el = skinCard({ id: item.key, name: `${item.name}${pro ? '' : ' 🔒'}`, data, model: item.spec.model });
+    el.insertAdjacentHTML('afterbegin', '<span class="pro-badge corner">PRO</span>');
+    el.addEventListener('click', () => selectSkin({ kind: 'ready', key: item.key, data, model: item.spec.model, name: item.name, pro: true }));
+    box.appendChild(el);
+  }
   for (const item of READY_SKINS) {
     const data = presetData(item);
     const el = skinCard({ id: item.key, name: item.name, data, model: item.spec.model });
@@ -382,6 +400,10 @@ async function wearSelected() {
   const sel = sk.sel;
   if (!sel) return;
   let id = sel.id;
+  if (sel.pro && !st.me?.pro) {
+    toast('Этот скин — для Rionina Pro. Pro сейчас бесплатный: вкладка «Rionina Pro»', 6000);
+    return;
+  }
   if (sel.kind === 'ready') {
     const exist = mySkins().find((s) => s.preset === sel.key);
     if (exist) id = exist.id;

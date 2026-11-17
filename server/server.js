@@ -1,0 +1,368 @@
+// Сервер Rionina: аккаунты (ник + пароль или Microsoft), друзья, открытые миры,
+// Rionina Coins, ежедневные награды, Pro и сайт rioninalauncher.com.
+// Без внешних зависимостей: node server.js
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const PORT = Number(process.env.PORT) || 8080;
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const DB_FILE = path.join(DATA_DIR, 'db.json');
+const SITE_DIR = process.env.SITE_DIR || path.join(__dirname, '..', 'site');
+
+// ───────────── Экономика и лимиты ─────────────
+const ECONOMY = {
+  startCoins: 150,
+  daily: [50, 60, 70, 80, 100, 120, 200], // награда за 1-й…7-й день подряд
+  chests: { starter: 100, effects: 200, legend: 500 },
+  friendsLimit: { free: 10, pro: 50 },
+  proPriceUsd: 10,
+  proFree: true, // пока Pro бесплатный
+};
+const ONLINE_MS = 150_000; // считаем онлайн, если лаунчер отзывался последние 2,5 минуты
+
+// ───────────── Хранилище (JSON-файл) ─────────────
+let db = { users: {}, sessions: {}, requests: [] };
+try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch { /* новая база */ }
+let saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const tmp = DB_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(db));
+    fs.renameSync(tmp, DB_FILE);
+  }, 200);
+}
+
+const lower = (s) => String(s || '').toLowerCase();
+const now = () => Date.now();
+const NICK_RE = /^[A-Za-z0-9_]{3,16}$/;
+
+function offlineUuid(name) {
+  const md5 = crypto.createHash('md5').update(`OfflinePlayer:${name}`).digest();
+  md5[6] = (md5[6] & 0x0f) | 0x30;
+  md5[8] = (md5[8] & 0x3f) | 0x80;
+  const h = md5.toString('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { salt, hash };
+}
+function checkPassword(password, user) {
+  const { hash } = hashPassword(password, user.salt);
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(user.hash, 'hex'));
+}
+
+function newSession(key) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const id = crypto.createHash('sha256').update(token).digest('hex');
+  db.sessions[id] = { user: key, created: now(), expires: now() + 90 * 864e5 };
+  save();
+  return token;
+}
+function userByToken(req) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const s = db.sessions[crypto.createHash('sha256').update(token).digest('hex')];
+  if (!s || s.expires < now()) return null;
+  return db.users[s.user] || null;
+}
+
+function makeUser(nick, kind, extra = {}) {
+  const user = {
+    nick, kind, uuid: kind === 'rionina' ? offlineUuid(nick) : extra.uuid,
+    created: now(), coins: ECONOMY.startCoins, streak: 0, lastDaily: 0,
+    pro: false, friends: [], presence: null, ...extra,
+  };
+  db.users[lower(nick)] = user;
+  save();
+  return user;
+}
+
+const isPro = (u) => !!u.pro;
+const limitFor = (u) => (isPro(u) ? ECONOMY.friendsLimit.pro : ECONOMY.friendsLimit.free);
+const dayIndex = (t) => Math.floor((t + 3 * 3600e3) / 864e5); // сутки по Москве
+
+function me(u) {
+  const today = dayIndex(now());
+  return {
+    nick: u.nick, uuid: u.uuid, kind: u.kind, coins: u.coins, pro: isPro(u),
+    streak: u.streak, dailyAvailable: dayIndex(u.lastDaily) !== today,
+    nextDaily: ECONOMY.daily[Math.min(u.streak, ECONOMY.daily.length - 1)] * (isPro(u) ? 2 : 1),
+    friendsLimit: limitFor(u), economy: { chests: ECONOMY.chests, proPriceUsd: ECONOMY.proPriceUsd, proFree: ECONOMY.proFree },
+  };
+}
+
+// Простая защита от перебора паролей
+const attempts = new Map();
+function throttle(key) {
+  const a = attempts.get(key) || { n: 0, t: now() };
+  if (now() - a.t > 10 * 60e3) { a.n = 0; a.t = now(); }
+  a.n++;
+  attempts.set(key, a);
+  if (a.n > 10) throw httpError(429, 'Слишком много попыток — подождите 10 минут');
+}
+
+function httpError(code, message) { const e = new Error(message); e.code = code; return e; }
+
+// ───────────── API ─────────────
+const routes = {};
+const route = (method, p, fn) => { routes[`${method} ${p}`] = fn; };
+
+route('GET', '/api/health', () => ({ ok: true, name: 'Rionina', version: 1 }));
+
+route('POST', '/api/auth/register', ({ body, ip }) => {
+  throttle('reg:' + ip);
+  const nick = String(body.nick || '').trim();
+  const password = String(body.password || '');
+  if (!NICK_RE.test(nick)) throw httpError(400, 'Ник: 3–16 символов, латиница, цифры и «_»');
+  if (password.length < 6) throw httpError(400, 'Пароль — минимум 6 символов');
+  if (db.users[lower(nick)]) throw httpError(409, 'Этот ник уже занят');
+  const user = makeUser(nick, 'rionina', hashPassword(password));
+  return { token: newSession(lower(nick)), me: me(user) };
+});
+
+route('POST', '/api/auth/login', ({ body, ip }) => {
+  const nick = String(body.nick || '').trim();
+  throttle('login:' + lower(nick) + ':' + ip);
+  const user = db.users[lower(nick)];
+  if (!user || user.kind !== 'rionina' || !checkPassword(String(body.password || ''), user)) {
+    throw httpError(401, 'Неверный ник или пароль');
+  }
+  return { token: newSession(lower(nick)), me: me(user) };
+});
+
+// Аккаунт Microsoft: проверяем токен Minecraft у Mojang и выдаём сессию Rionina
+route('POST', '/api/auth/microsoft', async ({ body }) => {
+  const res = await fetch('https://api.minecraftservices.com/minecraft/profile', {
+    headers: { Authorization: `Bearer ${String(body.mcToken || '')}` },
+  });
+  if (!res.ok) throw httpError(401, 'Mojang не подтвердил аккаунт');
+  const prof = await res.json();
+  let key = Object.keys(db.users).find((k) => db.users[k].kind === 'microsoft' && db.users[k].uuid === prof.id);
+  if (!key) {
+    let nick = prof.name;
+    if (db.users[lower(nick)]) nick = `${prof.name}_ms`.slice(0, 16);
+    makeUser(nick, 'microsoft', { uuid: prof.id });
+    key = lower(nick);
+  }
+  return { token: newSession(key), me: me(db.users[key]) };
+});
+
+route('POST', '/api/auth/logout', ({ req }) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  delete db.sessions[crypto.createHash('sha256').update(token).digest('hex')];
+  save();
+  return { ok: true };
+});
+
+route('GET', '/api/me', ({ user }) => me(user));
+
+route('POST', '/api/daily', ({ user }) => {
+  const today = dayIndex(now());
+  if (dayIndex(user.lastDaily) === today) throw httpError(409, 'Награда за сегодня уже получена');
+  user.streak = dayIndex(user.lastDaily) === today - 1 ? user.streak + 1 : 1;
+  const reward = ECONOMY.daily[Math.min(user.streak - 1, ECONOMY.daily.length - 1)] * (isPro(user) ? 2 : 1);
+  user.coins += reward;
+  user.lastDaily = now();
+  save();
+  return { reward, me: me(user) };
+});
+
+route('POST', '/api/chests/open', ({ user, body }) => {
+  const price = ECONOMY.chests[body.chest];
+  if (price == null) throw httpError(400, 'Нет такого сундука');
+  if (!isPro(user)) {
+    if (user.coins < price) throw httpError(402, `Не хватает монет: нужно ${price}`);
+    user.coins -= price;
+  }
+  save();
+  return { paid: isPro(user) ? 0 : price, me: me(user) };
+});
+
+route('POST', '/api/pro/activate', ({ user }) => {
+  if (!ECONOMY.proFree) throw httpError(402, 'Оплата Pro скоро появится');
+  user.pro = true;
+  user.proSince = now();
+  save();
+  return me(user);
+});
+
+// ───────────── Друзья ─────────────
+function publicFriend(nick) {
+  const f = db.users[lower(nick)];
+  if (!f) return null;
+  const p = f.presence;
+  const online = !!p && now() - p.at < ONLINE_MS;
+  return {
+    nick: f.nick, uuid: f.uuid, pro: isPro(f), online,
+    status: online ? p.status : 'offline',
+    playing: online ? p.playing || null : null,
+    shared: online && p.shared && p.shared.address ? p.shared : null,
+  };
+}
+
+route('GET', '/api/friends', ({ user }) => ({
+  limit: limitFor(user),
+  friends: user.friends.map(publicFriend).filter(Boolean),
+  incoming: db.requests.filter((r) => r.to === lower(user.nick)).map((r) => db.users[r.from]?.nick).filter(Boolean),
+  outgoing: db.requests.filter((r) => r.from === lower(user.nick)).map((r) => db.users[r.to]?.nick).filter(Boolean),
+}));
+
+route('POST', '/api/friends/request', ({ user, body }) => {
+  const target = db.users[lower(body.nick)];
+  if (!target) throw httpError(404, 'Игрок с таким ником не найден');
+  if (target === user) throw httpError(400, 'Нельзя добавить самого себя');
+  if (user.friends.some((n) => lower(n) === lower(target.nick))) throw httpError(409, 'Вы уже друзья');
+  if (user.friends.length >= limitFor(user)) throw httpError(403, `Лимит друзей: ${limitFor(user)}${isPro(user) ? '' : ' — с Pro до 50'}`);
+  // Встречная заявка — сразу дружим
+  const back = db.requests.findIndex((r) => r.from === lower(target.nick) && r.to === lower(user.nick));
+  if (back >= 0) {
+    db.requests.splice(back, 1);
+    link(user, target);
+    return { status: 'friends' };
+  }
+  if (!db.requests.some((r) => r.from === lower(user.nick) && r.to === lower(target.nick))) {
+    db.requests.push({ from: lower(user.nick), to: lower(target.nick), at: now() });
+    save();
+  }
+  return { status: 'sent' };
+});
+
+function link(a, b) {
+  if (a.friends.length >= limitFor(a)) throw httpError(403, `У вас уже ${limitFor(a)} друзей — это лимит`);
+  if (b.friends.length >= limitFor(b)) throw httpError(403, `У игрока ${b.nick} заполнен список друзей`);
+  if (!a.friends.includes(b.nick)) a.friends.push(b.nick);
+  if (!b.friends.includes(a.nick)) b.friends.push(a.nick);
+  save();
+}
+
+route('POST', '/api/friends/accept', ({ user, body }) => {
+  const i = db.requests.findIndex((r) => r.from === lower(body.nick) && r.to === lower(user.nick));
+  if (i < 0) throw httpError(404, 'Заявка не найдена');
+  const from = db.users[db.requests[i].from];
+  db.requests.splice(i, 1);
+  link(user, from);
+  return { status: 'friends' };
+});
+
+route('POST', '/api/friends/decline', ({ user, body }) => {
+  db.requests = db.requests.filter((r) => !(
+    (r.from === lower(body.nick) && r.to === lower(user.nick)) || (r.from === lower(user.nick) && r.to === lower(body.nick))));
+  save();
+  return { ok: true };
+});
+
+route('POST', '/api/friends/remove', ({ user, body }) => {
+  const other = db.users[lower(body.nick)];
+  user.friends = user.friends.filter((n) => lower(n) !== lower(body.nick));
+  if (other) other.friends = other.friends.filter((n) => lower(n) !== lower(user.nick));
+  save();
+  return { ok: true };
+});
+
+// Лаунчер раз в минуту сообщает статус и открытый для друзей мир
+route('POST', '/api/presence', ({ user, body }) => {
+  const shared = body.shared && typeof body.shared.address === 'string' && /^[a-z0-9.-]+(:\d+)?$/i.test(body.shared.address)
+    ? {
+      address: body.shared.address.slice(0, 120),
+      gameVersion: String(body.shared.gameVersion || '').slice(0, 32),
+      loader: body.shared.loader === 'fabric' ? 'fabric' : null,
+      mods: Array.isArray(body.shared.mods) ? body.shared.mods.filter((m) => /^[A-Za-z0-9]{8}$/.test(m)).slice(0, 200) : [],
+      world: String(body.shared.world || '').slice(0, 40),
+    }
+    : null;
+  user.presence = {
+    at: now(),
+    status: ['online', 'playing'].includes(body.status) ? body.status : 'online',
+    playing: body.playing ? { gameVersion: String(body.playing.gameVersion || '').slice(0, 32) } : null,
+    shared,
+  };
+  save();
+  return { ok: true };
+});
+
+// Новости для сайта и лаунчера
+// Новости берутся из блока <script id="news"> страницы сайта — правите в одном месте
+route('GET', '/api/news', () => {
+  try {
+    const html = fs.readFileSync(path.join(SITE_DIR, 'index.html'), 'utf8');
+    return JSON.parse(html.match(/<script id="news" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+  } catch { return []; }
+});
+
+// ───────────── HTTP ─────────────
+const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp', '.jpg': 'image/jpeg' };
+const PUBLIC = new Set(['GET /api/health', 'POST /api/auth/register', 'POST /api/auth/login', 'POST /api/auth/microsoft', 'GET /api/news']);
+
+function send(res, code, data, headers = {}) {
+  const body = typeof data === 'string' || Buffer.isBuffer(data) ? data : JSON.stringify(data);
+  res.writeHead(code, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    ...headers,
+  });
+  res.end(body);
+}
+
+// Страница сайта хранится без <html>/<head> — оборачиваем её при отдаче
+function wrapPage(buf) {
+  const text = buf.toString('utf8');
+  if (/^\s*<!doctype/i.test(text)) return buf;
+  const split = text.indexOf('</style>') + '</style>'.length;
+  return Buffer.from(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">${text.slice(0, split)}</head><body>${text.slice(split)}</body></html>`);
+}
+
+function serveStatic(req, res) {
+  const url = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  // Скачать лаунчер: файл data/RioninaLauncher.exe или ссылка из DOWNLOAD_URL
+  if (url === '/download') {
+    const exe = path.join(DATA_DIR, 'RioninaLauncher.exe');
+    if (fs.existsSync(exe)) {
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="RioninaLauncher.exe"', 'Content-Length': fs.statSync(exe).size });
+      return fs.createReadStream(exe).pipe(res);
+    }
+    if (process.env.DOWNLOAD_URL) { res.writeHead(302, { Location: process.env.DOWNLOAD_URL }); return res.end(); }
+    return send(res, 404, 'Файл лаунчера ещё не загружен на сервер', { 'Content-Type': 'text/plain; charset=utf-8' });
+  }
+  let file = path.normalize(path.join(SITE_DIR, url === '/' ? 'index.html' : url));
+  if (!file.startsWith(SITE_DIR)) return send(res, 403, 'Forbidden', { 'Content-Type': 'text/plain' });
+  if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
+  if (!fs.existsSync(file)) file = path.join(SITE_DIR, 'index.html');
+  let data = fs.readFileSync(file);
+  if (path.extname(file) === '.html') data = wrapPage(data);
+  send(res, 200, data, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'public, max-age=300' });
+}
+
+const server = http.createServer(async (req, res) => {
+  if (req.method === 'OPTIONS') return send(res, 204, '');
+  const pathname = new URL(req.url, 'http://x').pathname;
+  if (!pathname.startsWith('/api/')) return serveStatic(req, res);
+  const key = `${req.method} ${pathname}`;
+  const fn = routes[key];
+  if (!fn) return send(res, 404, { error: 'Не найдено' });
+  try {
+    let raw = '';
+    for await (const chunk of req) {
+      raw += chunk;
+      if (raw.length > 64 * 1024) throw httpError(413, 'Слишком большой запрос');
+    }
+    const body = raw ? JSON.parse(raw) : {};
+    const user = userByToken(req);
+    if (!PUBLIC.has(key) && !user) throw httpError(401, 'Войдите в аккаунт');
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    send(res, 200, await fn({ req, body, user, ip }));
+  } catch (e) {
+    send(res, e.code && e.code >= 400 && e.code < 600 ? e.code : 500, { error: e.code ? e.message : 'Ошибка сервера' });
+    if (!e.code) console.error(e);
+  }
+});
+
+server.listen(PORT, () => console.log(`Rionina server: http://localhost:${PORT}`));
+module.exports = { server, ECONOMY };

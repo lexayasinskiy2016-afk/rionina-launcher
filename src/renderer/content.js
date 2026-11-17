@@ -168,7 +168,12 @@ $('#btnCreateFabric').addEventListener('click', async () => {
         await openContentTab('mods');
         // Fabric API нужен почти всем модам — ставим сразу
         R.content.install({ type: 'mod', projectId: 'P7dR8mSH', versionId: id })
-          .then(() => { toast('Сборка готова: установлен Fabric API'); renderInstalledContent('mods'); })
+          .then(async () => {
+            // Pro: сразу ставим моды на производительность
+            if (st.me?.pro) await R.eco.boost(id).catch(() => {});
+            toast(st.me?.pro ? 'Сборка готова: Fabric API + Pro-ускорение' : 'Сборка готова: установлен Fabric API');
+            renderInstalledContent('mods');
+          })
           .catch(() => {});
       }
     });
