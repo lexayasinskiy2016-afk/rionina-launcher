@@ -16,6 +16,7 @@ const modrinth = require('./core/modrinth');
 const packs = require('./core/packs');
 const { RioninaApi, Economy, authRionina, DEFAULT_SERVER } = require('./core/rionina');
 const mp = require('./core/multiplayer');
+const aimods = require('./core/aimods');
 
 const ROOT = path.join(app.getPath('appData'), '.rionina');
 const USER = app.getPath('userData');
@@ -51,6 +52,8 @@ function load() {
     if (raw.localCredsEnc && safeStorage.isEncryptionAvailable()) {
       raw.localCreds = JSON.parse(safeStorage.decryptString(Buffer.from(raw.localCredsEnc, 'base64')));
     }
+    if (raw.geminiKeyEnc && safeStorage.isEncryptionAvailable()) raw.geminiKey = safeStorage.decryptString(Buffer.from(raw.geminiKeyEnc, 'base64'));
+    delete raw.geminiKeyEnc;
     delete raw.localCredsEnc;
     delete raw.accountsEnc;
     delete raw.accountEnc;
@@ -67,6 +70,8 @@ function save() {
   if (safeStorage.isEncryptionAvailable()) {
     out.accountsEnc = safeStorage.encryptString(JSON.stringify(out.accounts)).toString('base64');
     out.localCredsEnc = safeStorage.encryptString(JSON.stringify(out.localCreds || [])).toString('base64');
+    if (out.geminiKey) out.geminiKeyEnc = safeStorage.encryptString(out.geminiKey).toString('base64');
+    delete out.geminiKey;
     delete out.accounts;
     delete out.localCreds;
   }
@@ -205,7 +210,7 @@ handle('account:logout', () => {
 // ───────────── Настройки и данные интерфейса ─────────────
 
 handle('settings:get', () => {
-  const { accounts, localCreds, eco, ...rest } = state;
+  const { accounts, localCreds, eco, geminiKey, ...rest } = state;
   return { ...rest, totalMemory: Math.floor(require('os').totalmem() / 1024 / 1024), root: ROOT };
 });
 handle('settings:set', (patch) => {
@@ -413,6 +418,7 @@ async function launchGame(id, { join = null, host = false } = {}) {
   if (host) hosting = { versionId: id, gameVersion: installed?.gameVersion || id, loader: installed?.loader || null, mods: await mp.modList(mc, id).catch(() => []), address: null };
 
   send('game:state', { state: 'starting', id });
+  await aimods.syncWorlds(gameDir).catch(() => {}); // ИИ-моды — во все миры
   watchShots(gameDir);
   game = await mc.launch(id, acc, { ...state, pro: isPro(acc), join }, {
     onLog: (line) => {
@@ -751,3 +757,33 @@ handle('packs:installed', (id) => serverCall('POST', '/packs/install', { id }).c
 
 handle('chat:get', ({ nick, after }) => friendsCall('GET', `/chat?with=${encodeURIComponent(nick)}&after=${Number(after) || 0}`));
 handle('chat:send', ({ nick, text }) => friendsCall('POST', '/chat/send', { to: nick, text }));
+
+// ───────────── ИИ-моды (нейросеть придумывает новые предметы) ─────────────
+
+handle('aimods:key', () => (state.geminiKey ? `${state.geminiKey.slice(0, 4)}…${state.geminiKey.slice(-4)}` : null));
+handle('aimods:setKey', (key) => {
+  const k = String(key || '').trim();
+  if (k && !/^[A-Za-z0-9_-]{20,80}$/.test(k)) throw new Error('Это не похоже на ключ Gemini — он начинается с «AIza»');
+  state.geminiKey = k || null;
+  save();
+  return !!k;
+});
+handle('aimods:create', async ({ idea, gameVersion }) => {
+  const mod = await aimods.create({ key: state.geminiKey, idea, gameVersion });
+  if (mod.ok) mod.items = mod.items.map((it) => ({ ...it, preview: aimods.previewPng(it) }));
+  return mod;
+});
+handle('aimods:install', async ({ mod, versionId }) => {
+  const t = await target(versionId);
+  if (!aimods.supported(t.gameVersion)) throw new Error('ИИ-моды работают в Minecraft 1.21.4 и новее');
+  const clean = { ...mod, items: mod.items.map(({ preview, ...it }) => it), gameVersion: t.gameVersion };
+  return aimods.install(t.gameDir, clean);
+});
+handle('aimods:list', async (versionId) => {
+  const t = await target(versionId);
+  return (await aimods.list(t.gameDir)).map((m) => ({ ...m, items: m.items.map((it) => ({ ...it, preview: aimods.previewPng(it) })) }));
+});
+handle('aimods:remove', async ({ versionId, ns }) => {
+  const t = await target(versionId);
+  await aimods.remove(t.gameDir, ns);
+});

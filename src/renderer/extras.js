@@ -411,3 +411,164 @@ document.querySelector('.nav[data-tab="skins"]').addEventListener('click', () =>
   renderCapeChips();
   applyCape(sk.viewer);
 });
+
+// ───────────── ИИ-моды: нейросеть создаёт новые предметы ─────────────
+
+const am = { mod: null };
+const MOD_EXAMPLES = ['Огненный меч, который поджигает врагов', 'Ледяная броня и замораживающий топор', 'Пицца, которая даёт скорость и силу', 'Меч-молния, бьющий громом', 'Кирка шахтёра с ночным зрением', 'Радужное печенье с регенерацией'];
+const KIND_NAMES = { sword: 'Меч', axe: 'Топор', pickaxe: 'Кирка', shovel: 'Лопата', bow: 'Лук', food: 'Еда', helmet: 'Шлем', chestplate: 'Нагрудник', leggings: 'Поножи', boots: 'Ботинки', item: 'Предмет' };
+const EFFECT_NAMES = { speed: 'Скорость', slowness: 'Замедление', haste: 'Спешка', strength: 'Сила', instant_health: 'Исцеление', jump_boost: 'Прыгучесть', regeneration: 'Регенерация', resistance: 'Сопротивление', fire_resistance: 'Огнестойкость', water_breathing: 'Подводное дыхание', invisibility: 'Невидимость', night_vision: 'Ночное зрение', weakness: 'Слабость', poison: 'Отравление', wither: 'Иссушение', absorption: 'Поглощение', saturation: 'Насыщение', glowing: 'Свечение', levitation: 'Левитация', luck: 'Удача', slow_falling: 'Плавное падение', conduit_power: 'Сила источника', dolphins_grace: 'Грация дельфина', hero_of_the_village: 'Герой деревни', darkness: 'Тьма' };
+const lvl = (n) => ['', 'I', 'II', 'III'][n] || n;
+
+$$('#aiMode button').forEach((b) => b.addEventListener('click', () => {
+  $$('#aiMode button').forEach((x) => x.classList.toggle('active', x === b));
+  $('#aiModMode').classList.toggle('hidden', b.dataset.v !== 'mod');
+  $('#aiPackMode').classList.toggle('hidden', b.dataset.v !== 'pack');
+  if (b.dataset.v === 'mod') openModMode();
+}));
+
+async function openModMode() {
+  $('#modExamples').innerHTML = MOD_EXAMPLES.map((t) => `<button class="chip">${esc(t)}</button>`).join('');
+  $('#modExamples').querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => { $('#modIdea').value = c.textContent; }));
+  const key = await R.aimods.key().catch(() => null);
+  $('#aiKeyCard').classList.toggle('hidden', !!key);
+  $('#aiKeyState').innerHTML = key ? `Нейросеть подключена · <a href="#" id="aiKeyChange" class="ext">сменить ключ</a>` : '';
+  $('#aiKeyChange')?.addEventListener('click', (e) => { e.preventDefault(); $('#aiKeyCard').classList.remove('hidden'); });
+  // Версии 1.21.4+ (подходят и обычные, и с модами)
+  const list = (await installedVersions()).filter((v) => modVersionOk(v.gameVersion));
+  const sel = $('#modVersion');
+  const prev = sel.value;
+  sel.innerHTML = list.length
+    ? list.map((v) => `<option value="${esc(v.id)}">${v.name ? `${esc(v.name)} · ` : ''}${v.loader ? `${LOADER_NAMES[v.loader]} ` : 'Minecraft '}${esc(v.gameVersion)}</option>`).join('')
+    : '<option value="">Установите Minecraft 1.21.4 или новее</option>';
+  if (prev && list.some((v) => v.id === prev)) sel.value = prev;
+  loadMyMods();
+}
+
+function modVersionOk(v) {
+  const p = String(v).split('.').map(Number);
+  return p[0] >= 25 || (p[0] === 1 && (p[1] > 21 || (p[1] === 21 && (p[2] || 0) >= 4)));
+}
+
+$('#aiKeyForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await R.aimods.setKey($('#aiKeyInput').value);
+    $('#aiKeyInput').value = '';
+    toast('Нейросеть подключена ✨');
+    openModMode();
+  } catch (er) { toast(er.message); }
+});
+$('#modVersion').addEventListener('change', loadMyMods);
+
+function itemStats(it) {
+  const out = [];
+  if (it.damage != null) out.push(`⚔️ Урон ${it.damage}`);
+  if (it.armor != null) out.push(`🛡️ Броня ${it.armor}`);
+  if (it.durability) out.push(`🔧 Прочность ${it.durability}`);
+  if (it.onHit?.ignite) out.push(`🔥 Поджигает на ${it.onHit.ignite} с`);
+  if (it.onHit?.lightning) out.push('⚡ Иногда бьёт молнией');
+  for (const e of it.onHit?.effects || []) out.push(`💥 ${EFFECT_NAMES[e.effect] || e.effect} ${lvl(e.level)} врагу на ${e.seconds} с`);
+  if (it.food) out.push(`🍗 Сытость ${it.food.nutrition}`);
+  for (const e of it.food?.effects || []) out.push(`✨ ${EFFECT_NAMES[e.effect] || e.effect} ${lvl(e.level)} на ${e.seconds} с`);
+  return out;
+}
+
+function recipeGrid(r) {
+  const names = (id) => id.replace('minecraft:', '').replace(/_/g, ' ');
+  return `<div class="recipe">${r.pattern.join('').padEnd(9, ' ').split('').map((c) => `<i title="${c === ' ' ? '' : esc(names(r.key[c]))}">${c === ' ' ? '' : esc(names(r.key[c]).split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase())}</i>`).join('')}</div>`;
+}
+
+function modItemCard(it) {
+  return `<div class="mod-item">
+    <img src="${it.preview}" alt="" class="pix" />
+    <div class="mi-body">
+      <strong>${esc(it.name)}</strong>
+      <span class="muted small">${KIND_NAMES[it.kind] || 'Предмет'} · основа: ${esc(it.base.replace('minecraft:', '').replace(/_/g, ' '))}</span>
+      ${it.lore.length ? `<em class="small">${esc(it.lore.join(' · '))}</em>` : ''}
+      <div class="stats">${itemStats(it).map((s) => `<span>${esc(s)}</span>`).join('')}</div>
+    </div>
+    ${recipeGrid(it.recipe)}
+  </div>`;
+}
+
+function renderMod() {
+  const m = am.mod;
+  const box = $('#modResult');
+  if (!m) { box.innerHTML = ''; return; }
+  if (!m.ok) {
+    box.innerHTML = `<div class="ai-plan rejected"><div class="verdict bad">⛔ Модерация: нельзя</div><p>${esc(m.reason)}</p></div>`;
+    return;
+  }
+  box.innerHTML = `
+    <div class="ai-plan">
+      <div class="plan-head"><div class="verdict ok">✅ Модерация пройдена</div><span class="muted small">Создала нейросеть · Minecraft ${esc(m.gameVersion)}</span></div>
+      <h3 style="margin:0">${esc(m.name)}</h3>
+      <p class="muted">${esc(m.description)}</p>
+      ${m.items.map(modItemCard).join('')}
+      <div class="row-gap"><button class="btn btn-primary" id="btnModInstall">Установить в игру</button><button class="btn btn-secondary" id="btnModAgain">Придумать заново</button></div>
+      <p class="muted small">Предметы крафтятся на верстаке — рецепты сразу появятся в книге рецептов.</p>
+    </div>`;
+  $('#btnModInstall').addEventListener('click', installMod);
+  $('#btnModAgain').addEventListener('click', () => $('#btnModCreate').click());
+}
+
+$('#btnModCreate').addEventListener('click', async () => {
+  const versionId = $('#modVersion').value;
+  if (!versionId) return toast('Сначала установите Minecraft 1.21.4 или новее во вкладке «Версии»');
+  const v = (await installedVersions()).find((x) => x.id === versionId);
+  const b = $('#btnModCreate');
+  b.disabled = true;
+  b.textContent = 'Нейросеть рисует…';
+  $('#modResult').innerHTML = '<div class="skeleton" style="height:260px"></div>';
+  try {
+    am.mod = await R.aimods.create({ idea: $('#modIdea').value, gameVersion: v.gameVersion });
+    am.versionId = versionId;
+    renderMod();
+  } catch (e) {
+    $('#modResult').innerHTML = '';
+    toast(e.message, 7000);
+    if (/ключ/i.test(e.message)) $('#aiKeyCard').classList.remove('hidden');
+  } finally {
+    b.disabled = false;
+    b.textContent = '✨ Создать мод';
+  }
+});
+
+async function installMod() {
+  const b = $('#btnModInstall');
+  b.disabled = true;
+  try {
+    await R.aimods.install({ mod: am.mod, versionId: am.versionId });
+    b.textContent = '✓ Установлено';
+    toast(`Мод «${am.mod.name}» в игре! Скрафтите предметы на верстаке. В новом мире: выйдите и зайдите снова.`, 8000);
+    selectVersion(am.versionId);
+    loadMyMods();
+  } catch (e) {
+    b.disabled = false;
+    toast(e.message, 6000);
+  }
+}
+
+async function loadMyMods() {
+  const versionId = $('#modVersion').value;
+  const box = $('#myMods');
+  if (!versionId) { box.innerHTML = ''; $('#myModsTitle').classList.add('hidden'); return; }
+  const list = await R.aimods.list(versionId).catch(() => []);
+  $('#myModsTitle').classList.toggle('hidden', !list.length);
+  box.innerHTML = '';
+  for (const m of list) {
+    const el = document.createElement('div');
+    el.className = 'pack-card';
+    el.innerHTML = `<div class="pack-top"><span class="pill2">ИИ-мод</span><button class="icon-btn" title="Удалить"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <h4>${esc(m.name)}</h4>
+      <div class="mini-items">${m.items.map((it) => `<img class="pix" src="${it.preview}" title="${esc(it.name)}" alt="" />`).join('')}</div>
+      <p class="muted small">${m.items.map((it) => esc(it.name)).join(', ')}</p>`;
+    el.querySelector('button').addEventListener('click', async () => {
+      await R.aimods.remove({ versionId, ns: m.ns });
+      toast(`Мод «${m.name}» удалён`);
+      loadMyMods();
+    });
+    box.appendChild(el);
+  }
+}

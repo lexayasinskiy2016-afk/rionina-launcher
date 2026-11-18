@@ -565,3 +565,20 @@ kbd { font: 600 12px ui-monospace, monospace; padding: 2px 7px; border-radius: 6
 /* Pro: оплата скоро */
 .pro-soon { margin: 10px 0 0 !important; font-size: 13px; opacity: .85 !important; }
 body.glassy .ai-card, body.glassy .ai-plan, body.glassy .pack-card, body.glassy .chat { background-color: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(24px); }
+
+/* ───────── ИИ-моды ───────── */
+.ai-mode { margin-bottom: 14px; }
+.ai-key { margin-bottom: 14px; }
+.ai-key h4 { margin: 0 0 6px; }
+.ai-key ol { margin: 0 0 12px; padding-left: 20px; line-height: 1.7; }
+.pix { image-rendering: pixelated; }
+.mod-item { display: flex; gap: 14px; align-items: center; background: var(--surface-2); border-radius: 14px; padding: 12px; }
+.mod-item > img { width: 64px; height: 64px; flex-shrink: 0; background: var(--surface); border-radius: 10px; padding: 6px; }
+.mi-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mi-body em { color: #8f6bd6; }
+.stats { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.stats span { font-size: 12px; background: var(--surface); padding: 3px 8px; border-radius: 99px; }
+.recipe { display: grid; grid-template-columns: repeat(3, 28px); gap: 3px; flex-shrink: 0; }
+.recipe i { width: 28px; height: 28px; border-radius: 6px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); font: 700 9px/28px ui-monospace, monospace; text-align: center; font-style: normal; color: var(--muted); }
+.mini-items { display: flex; gap: 6px; }
+.mini-items img { width: 34px; height: 34px; background: var(--surface-2); border-radius: 8px; padding: 3px; }

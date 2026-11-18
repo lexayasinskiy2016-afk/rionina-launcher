@@ -121,6 +121,14 @@ contextBridge.exposeInMainWorld('rionina', {
     publish: (p) => call('packs:publish', p),
     installed: (id) => call('packs:installed', id),
   },
+  aimods: {
+    key: () => call('aimods:key'),
+    setKey: (k) => call('aimods:setKey', k),
+    create: (p) => call('aimods:create', p),
+    install: (p) => call('aimods:install', p),
+    list: (v) => call('aimods:list', v),
+    remove: (p) => call('aimods:remove', p),
+  },
   chat: {
     get: (p) => call('chat:get', p),
     send: (p) => call('chat:send', p),

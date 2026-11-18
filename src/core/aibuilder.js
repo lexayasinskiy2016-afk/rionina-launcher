@@ -31,7 +31,7 @@ const BASE = { fabric: ['fabric-api'], forge: [], neoforge: [] };
 const BLOCKED = /(?<![\p{L}\p{N}])(x-?ray|икс-?рей|kill ?aura|aimbot|аимбот|автоклик\p{L}*|dupe|дюп|cheats?|hacks?|читы|чит|читер|взлом|nsfw|porn\p{L}*|порн\p{L}*|sex|секс\p{L}*)(?![\p{L}\p{N}])|18\+/iu;
 
 function moderate(text) {
-  if (BLOCKED.test(text)) return { ok: false, reason: 'Такие сборки нельзя: читы, взлом и контент 18+ запрещены правилами Rionina' };
+  if (BLOCKED.test(text)) return { ok: false, reason: 'Так нельзя: читы, взлом и контент 18+ запрещены правилами Rionina' };
   return { ok: true };
 }
 

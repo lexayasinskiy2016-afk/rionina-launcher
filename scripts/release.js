@@ -36,7 +36,7 @@ if (notes.length && html.includes(marker) && !html.includes(`Rionina ${version}`
 }
 
 git('add', 'package.json', 'release-notes.json', 'site/index.html');
-git('-c', 'user.name=Rionina', '-c', 'user.email=noreply@rionina.local', 'commit', '-m', `Rionina Launcher ${version}`);
+git('commit', '-m', `Rionina Launcher ${version}`);
 git('-c', 'push.negotiate=true', 'push', 'origin', 'HEAD');
 console.log(`\n✔ Версия ${version} отправлена. GitHub соберёт и опубликует её минут за 10:`);
 console.log(`  https://github.com/${pkg.rionina.updateRepo}/actions`);

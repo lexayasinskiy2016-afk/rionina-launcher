@@ -387,8 +387,38 @@
 
       <!-- ИИ-сборки -->
       <div class="tab hidden" id="tab-ai">
-        <header class="page-head drag"><h2>ИИ-сборки</h2><p class="muted">Опишите, во что хотите играть, — ИИ соберёт моды, а модерация проверит сборку</p></header>
+        <header class="page-head drag"><h2>ИИ-сборки</h2><p class="muted">ИИ собирает сборки из модов и создаёт новые моды — модерация проверяет всё</p></header>
         <div class="scroll">
+          <div class="segmented ai-mode" id="aiMode">
+            <button class="active" data-v="pack">Сборка из модов</button>
+            <button data-v="mod">✨ Новый мод от ИИ</button>
+          </div>
+
+          <div id="aiModMode" class="hidden">
+            <div class="ai-key card hidden" id="aiKeyCard">
+              <h4>🔑 Подключите нейросеть — бесплатно</h4>
+              <ol class="muted small">
+                <li>Откройте <a href="https://aistudio.google.com/apikey" class="ext">aistudio.google.com/apikey</a> и войдите через Google.</li>
+                <li>Нажмите <b>Create API key</b> и скопируйте ключ (начинается с «AIza»).</li>
+                <li>Вставьте его сюда — он хранится зашифрованным только на этом компьютере.</li>
+              </ol>
+              <form class="inline-form" id="aiKeyForm"><input class="field field-sm" id="aiKeyInput" placeholder="AIza…" spellcheck="false" autocomplete="off" style="flex:1" /><button class="btn btn-primary btn-sm">Сохранить</button></form>
+            </div>
+            <div class="ai-card">
+              <textarea id="modIdea" class="field ai-input" maxlength="500" placeholder="Например: огненный меч, который поджигает врагов, и яблоко, которое даёт скорость"></textarea>
+              <div class="ai-row">
+                <select class="select select-sm" id="modVersion"></select>
+                <span class="muted small" id="aiKeyState"></span>
+                <button class="btn btn-primary" id="btnModCreate">✨ Создать мод</button>
+              </div>
+              <div class="ai-examples" id="modExamples"></div>
+            </div>
+            <div id="modResult"></div>
+            <h3 class="section-title hidden" id="myModsTitle">Мои ИИ-моды в этой версии</h3>
+            <div class="packs-grid" id="myMods"></div>
+          </div>
+
+          <div id="aiPackMode">
           <div class="ai-card">
             <textarea id="aiPrompt" class="field ai-input" maxlength="600" placeholder="Например: выживание с магией и драконами, красивая графика, чтобы не лагало"></textarea>
             <div class="ai-row">
@@ -407,6 +437,7 @@
           <div class="packs-grid" id="communityPacks"></div>
           <h3 class="section-title hidden" id="myPacksTitle">Мои опубликованные</h3>
           <div class="packs-grid" id="myPacks"></div>
+          </div>
         </div>
       </div>
 
