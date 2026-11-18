@@ -294,7 +294,7 @@ async function updateProfileVisuals() {
   ensureViewers();
   const worn = wornSkin();
   const data = worn?.data || presetData(READY_SKINS[0]);
-  loadInto(sk.mini, data, worn?.model);
+  loadInto(sk.mini, data, worn?.model).then(() => applyCape(sk.mini));
   sk.miniFx.set(profile().effect || null);
   const av = $('#avatar');
   if (worn || st.account.type !== 'microsoft') {

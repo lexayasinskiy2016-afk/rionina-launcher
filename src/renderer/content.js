@@ -1,7 +1,7 @@
 // Моды, шейдеры и ресурс-паки из Modrinth.
 const CT = {
-  mods: { type: 'mod', needsFabric: true },
-  shaders: { type: 'shader', needsFabric: true },
+  mods: { type: 'mod', needsFabric: true, loaders: ['fabric', 'forge', 'neoforge'] },
+  shaders: { type: 'shader', needsFabric: true, loaders: ['fabric'] },
   packs: { type: 'resourcepack', needsFabric: false },
 };
 const ctState = { mods: {}, shaders: {}, packs: {} };
@@ -13,10 +13,10 @@ async function installedVersions() {
 
 async function fillTargets(key) {
   const sel = document.querySelector(`[data-target="${key}"]`);
-  const list = (await installedVersions()).filter((v) => !CT[key].needsFabric || v.loader === 'fabric');
+  const list = (await installedVersions()).filter((v) => !CT[key].needsFabric || CT[key].loaders.includes(v.loader));
   const s = ctState[key];
   if (!list.length) {
-    sel.innerHTML = `<option value="">${CT[key].needsFabric ? 'Нет сборки Fabric' : 'Нет установленных версий'}</option>`;
+    sel.innerHTML = `<option value="">${CT[key].needsFabric ? (key === 'shaders' ? 'Нет сборки Fabric' : 'Нет сборки с модами') : 'Нет установленных версий'}</option>`;
     s.target = null;
     return null;
   }
@@ -24,7 +24,7 @@ async function fillTargets(key) {
     const pref = list.find((v) => v.id === st.settings.selectedVersion);
     s.target = (pref || list[0]).id;
   }
-  sel.innerHTML = list.map((v) => `<option value="${esc(v.id)}">${v.loader === 'fabric' ? `Fabric ${esc(v.gameVersion)}` : `Minecraft ${esc(v.id)}`}</option>`).join('');
+  sel.innerHTML = list.map((v) => `<option value="${esc(v.id)}">${v.name ? `${esc(v.name)} · ` : ''}${v.loader ? `${LOADER_NAMES[v.loader] || v.loader} ${esc(v.gameVersion)}` : `Minecraft ${esc(v.id)}`}</option>`).join('');
   sel.value = s.target;
   return list.find((v) => v.id === s.target);
 }
@@ -50,7 +50,7 @@ async function searchContent(key, append = false) {
   if (!append) { s.offset = 0; grid.innerHTML = '<div class="skeleton" style="height:120px"></div><div class="skeleton" style="height:120px"></div><div class="skeleton" style="height:120px"></div>'; }
   const v = (await installedVersions()).find((x) => x.id === s.target);
   try {
-    const res = await R.content.search({ type: CT[key].type, query: s.query || '', gameVersion: v?.gameVersion, offset: s.offset, sort: s.sort || 'downloads' });
+    const res = await R.content.search({ type: CT[key].type, query: s.query || '', gameVersion: v?.gameVersion, loader: v?.loader || 'fabric', offset: s.offset, sort: s.sort || 'downloads' });
     if (!append) grid.innerHTML = '';
     for (const h of res.hits) grid.appendChild(resultCard(key, h));
     s.offset += res.hits.length;
@@ -82,7 +82,7 @@ function resultCard(key, h) {
   el.querySelector('h4').style.cursor = 'pointer';
   const btn = el.querySelector('button');
   btn.addEventListener('click', async () => {
-    if (!s.target) return toast(CT[key].needsFabric ? 'Сначала создайте сборку Fabric во вкладке «Моды»' : 'Сначала установите версию во вкладке «Версии»');
+    if (!s.target) return toast(CT[key].needsFabric ? 'Сначала создайте сборку с модами во вкладке «Моды»' : 'Сначала установите версию во вкладке «Версии»');
     btn.disabled = true;
     btn.textContent = 'Установка…';
     try {
@@ -140,47 +140,44 @@ async function openContentTab(key) {
 async function renderFabricHero() {
   const sel = $('#fabricGame');
   if (sel.options.length) return;
-  sel.innerHTML = '<option>Загрузка…</option>';
-  try {
-    const games = await R.fabric.games();
-    const releases = new Set(st.versions.filter((v) => v.type === 'release').map((v) => v.id));
-    const list = games.filter((g) => !releases.size || releases.has(g)).slice(0, 60);
-    sel.innerHTML = list.map((g) => `<option value="${esc(g)}">Minecraft ${esc(g)}</option>`).join('');
-  } catch {
-    sel.innerHTML = '<option value="">Нет связи с Fabric</option>';
-  }
+  fillLoaderVersions(sel, modLoader);
 }
 
 $('#btnCreateFabric').addEventListener('click', async () => {
   const v = $('#fabricGame').value;
   if (!v) return;
+  const loader = modLoader;
   const btn = $('#btnCreateFabric');
   btn.disabled = true;
-  try {
-    const id = await R.fabric.create(v);
-    toast(`Создаём сборку Fabric ${v} — прогресс внизу. Потом установите Fabric API и любые моды.`, 6000);
+  btn.textContent = 'Создаём…';
+  toast(`Создаём сборку ${LOADER_NAMES[loader]} ${v} — прогресс внизу`, 6000);
+  const finish = async (id) => {
     ctState.mods.target = id;
-    ctState.shaders.target = id;
-    const off = R.onInstallState(async (p) => {
-      if (p.id !== id || (p.state !== 'done' && p.state !== 'error')) return;
-      off();
-      if (p.state === 'done') {
-        await openContentTab('mods');
-        // Fabric API нужен почти всем модам — ставим сразу
-        R.content.install({ type: 'mod', projectId: 'P7dR8mSH', versionId: id })
-          .then(async () => {
-            // Pro: сразу ставим моды на производительность
-            if (st.me?.pro) await R.eco.boost(id).catch(() => {});
-            toast(st.me?.pro ? 'Сборка готова: Fabric API + Pro-ускорение' : 'Сборка готова: установлен Fabric API');
-            renderInstalledContent('mods');
-          })
-          .catch(() => {});
-      }
-    });
+    if (loader === 'fabric') ctState.shaders.target = id;
+    await openContentTab('mods');
+    try {
+      // Fabric API нужен почти всем модам Fabric — ставим сразу
+      if (loader === 'fabric') await R.content.install({ type: 'mod', projectId: 'P7dR8mSH', versionId: id });
+      if (st.me?.pro) await R.eco.boost(id).catch(() => {});
+    } catch { /* без сети — поставят вручную */ }
+    toast(`Сборка ${LOADER_NAMES[loader]} ${v} готова — ставьте моды!`);
+    renderInstalledContent('mods');
+  };
+  try {
+    const id = await R.loaders.create({ loader, gameVersion: v });
+    if (loader !== 'fabric') await finish(id);
+    else {
+      const off = R.onInstallState((p) => {
+        if (p.id !== id || (p.state !== 'done' && p.state !== 'error')) return;
+        off();
+        if (p.state === 'done') finish(id);
+      });
+    }
   } catch (e) {
-    toast(e.message, 6000);
+    toast(e.message, 7000);
   } finally {
     btn.disabled = false;
+    btn.textContent = 'Создать сборку';
   }
 });
 

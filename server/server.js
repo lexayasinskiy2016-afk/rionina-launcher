@@ -18,13 +18,13 @@ const ECONOMY = {
   chests: { starter: 100, effects: 200, legend: 500 },
   friendsLimit: { free: 10, pro: 50 },
   proPriceUsd: 10,
-  proFree: true, // пока Pro бесплатный
+  proFree: false, // Pro только за $10 — оплата картой подключится позже
 };
 const ONLINE_MS = 150_000; // считаем онлайн, если лаунчер отзывался последние 2,5 минуты
 
 // ───────────── Хранилище (JSON-файл) ─────────────
-let db = { users: {}, sessions: {}, requests: [] };
-try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch { /* новая база */ }
+let db = { users: {}, sessions: {}, requests: [], chats: {}, unread: {}, packs: [] };
+try { db = { ...db, ...JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) }; } catch { /* новая база */ }
 let saveTimer = null;
 function save() {
   clearTimeout(saveTimer);
@@ -185,7 +185,7 @@ route('POST', '/api/chests/open', ({ user, body }) => {
 });
 
 route('POST', '/api/pro/activate', ({ user }) => {
-  if (!ECONOMY.proFree) throw httpError(402, 'Оплата Pro скоро появится');
+  if (!ECONOMY.proFree) throw httpError(402, 'Rionina Pro стоит $10 — оплата картой скоро появится');
   user.pro = true;
   user.proSince = now();
   save();
@@ -208,7 +208,8 @@ function publicFriend(nick) {
 
 route('GET', '/api/friends', ({ user }) => ({
   limit: limitFor(user),
-  friends: user.friends.map(publicFriend).filter(Boolean),
+  friends: user.friends.map(publicFriend).filter(Boolean)
+    .map((f) => ({ ...f, unread: db.unread[lower(user.nick)]?.[lower(f.nick)] || 0 })),
   incoming: db.requests.filter((r) => r.to === lower(user.nick)).map((r) => db.users[r.from]?.nick).filter(Boolean),
   outgoing: db.requests.filter((r) => r.from === lower(user.nick)).map((r) => db.users[r.to]?.nick).filter(Boolean),
 }));
@@ -284,6 +285,130 @@ route('POST', '/api/presence', ({ user, body }) => {
   };
   save();
   return { ok: true };
+});
+
+// ───────────── Чат с друзьями ─────────────
+const chatKey = (a, b) => [lower(a), lower(b)].sort().join('|');
+const isFriend = (u, nick) => u.friends.some((n) => lower(n) === lower(nick));
+
+route('GET', '/api/chat', ({ req, user }) => {
+  const q = new URL(req.url, 'http://x').searchParams;
+  const other = q.get('with') || '';
+  if (!isFriend(user, other)) throw httpError(403, 'Писать можно только друзьям');
+  const after = Number(q.get('after')) || 0;
+  const list = (db.chats[chatKey(user.nick, other)] || []).filter((m) => m.at > after);
+  if (db.unread[lower(user.nick)]?.[lower(other)]) { db.unread[lower(user.nick)][lower(other)] = 0; save(); }
+  return { messages: list };
+});
+
+route('POST', '/api/chat/send', ({ user, body }) => {
+  const to = db.users[lower(body.to)];
+  if (!to || !isFriend(user, to.nick)) throw httpError(403, 'Писать можно только друзьям');
+  const text = String(body.text || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  if (!text) throw httpError(400, 'Пустое сообщение');
+  const key = chatKey(user.nick, to.nick);
+  const list = (db.chats[key] ||= []);
+  const msg = { from: user.nick, text: moderateText(text), at: now() };
+  list.push(msg);
+  if (list.length > 300) list.splice(0, list.length - 300);
+  const box = (db.unread[lower(to.nick)] ||= {});
+  box[lower(user.nick)] = (box[lower(user.nick)] || 0) + 1;
+  save();
+  return msg;
+});
+
+// ───────────── Модерация ─────────────
+// Границы слова, которые понимают и русские буквы
+const W = (src) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${src})(?![\\p{L}\\p{N}])`, 'iu');
+const BLOCKED = [
+  W('x-?ray|xray|икс-?рей|иксрей'), W('kill ?aura|aimbot|аимбот|autoclicker|автокликер|автоклик'), W('dupe|дюп'),
+  W('cheats?|hacks?|hacked|читы|чит|читер|читов|взлом'), W('wurst|meteor client|impact client|aristois'),
+  W('nsfw|porn\\w*|порн\\w*|sex|секс\\w*'), /18\+/,
+];
+const RUDE_SRC = 'бля\\p{L}*|сук[аи]|хуй\\p{L}*|хуе\\p{L}*|пизд\\p{L}*|еба\\p{L}*|ёба\\p{L}*|fuck\\p{L}*|shit';
+const RUDE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${RUDE_SRC})(?![\\p{L}\\p{N}])`, 'giu');
+const isRude = (t) => new RegExp(RUDE.source, 'iu').test(t);
+function moderateText(t) { return t.replace(RUDE, (w) => '*'.repeat(w.length)); }
+function moderatePack(p) {
+  const text = [p.name, p.description, ...(p.mods || []).map((m) => `${m.title} ${m.slug || ''}`)].join(' ');
+  const bad = BLOCKED.find((re) => re.test(text));
+  if (bad) return { ok: false, reason: 'В сборке есть читы или запрещённый контент' };
+  if (isRude(text)) return { ok: false, reason: 'Нецензурные слова в названии или описании' };
+  if (!p.mods?.length) return { ok: false, reason: 'В сборке нет модов' };
+  if (p.mods.length > 150) return { ok: false, reason: 'Слишком много модов (больше 150)' };
+  return { ok: true };
+}
+
+// ───────────── Сборки игроков ─────────────
+const REVIEW_MS = 10 * 60e3; // проверка ~10 минут, потом сборка видна всем
+
+function publicPack(p) {
+  const status = p.status === 'rejected' ? 'rejected' : now() >= p.publishAt ? 'approved' : 'review';
+  return { id: p.id, name: p.name, description: p.description, author: p.author, gameVersion: p.gameVersion, loader: p.loader, mods: p.mods, status, reason: p.reason || null, created: p.created, publishAt: p.publishAt, installs: p.installs || 0 };
+}
+
+route('GET', '/api/packs', ({ user }) => {
+  const all = db.packs.map(publicPack);
+  return {
+    community: all.filter((p) => p.status === 'approved').sort((a, b) => b.installs - a.installs || b.created - a.created).slice(0, 100),
+    mine: all.filter((p) => lower(p.author) === lower(user.nick)).sort((a, b) => b.created - a.created),
+  };
+});
+
+route('POST', '/api/packs', ({ user, body }) => {
+  const mine = db.packs.filter((p) => lower(p.author) === lower(user.nick) && now() - p.created < 864e5);
+  if (mine.length >= 5) throw httpError(429, 'Не больше 5 сборок в день');
+  const pack = {
+    id: crypto.randomBytes(6).toString('hex'),
+    name: String(body.name || '').trim().slice(0, 48),
+    description: String(body.description || '').trim().slice(0, 400),
+    author: user.nick,
+    gameVersion: String(body.gameVersion || '').slice(0, 24),
+    loader: ['fabric', 'forge', 'neoforge'].includes(body.loader) ? body.loader : 'fabric',
+    mods: (Array.isArray(body.mods) ? body.mods : []).filter((m) => /^[A-Za-z0-9]{8}$/.test(m?.id))
+      .map((m) => ({ id: m.id, title: String(m.title || '').slice(0, 60), slug: String(m.slug || '').slice(0, 60) })),
+    created: now(),
+    installs: 0,
+  };
+  if (pack.name.length < 3) throw httpError(400, 'Название — минимум 3 символа');
+  const verdict = moderatePack(pack);
+  pack.status = verdict.ok ? 'review' : 'rejected';
+  pack.reason = verdict.ok ? null : verdict.reason;
+  pack.publishAt = now() + REVIEW_MS;
+  db.packs.push(pack);
+  save();
+  return publicPack(pack);
+});
+
+route('POST', '/api/packs/install', ({ body }) => {
+  const p = db.packs.find((x) => x.id === body.id);
+  if (p) { p.installs = (p.installs || 0) + 1; save(); }
+  return { ok: true };
+});
+
+// ───────────── ИИ-сборщик (нейросеть Google Gemini, бесплатный ключ) ─────────────
+route('POST', '/api/ai/modpack', async ({ body }) => {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw httpError(501, 'Нейросеть на сервере не подключена');
+  const prompt = String(body.prompt || '').slice(0, 600);
+  const verdict = moderatePack({ name: prompt, description: '', mods: [{ title: 'x' }] });
+  if (!verdict.ok) return { ok: false, reason: verdict.reason };
+  const ask = `Ты — помощник лаунчера Minecraft. Игрок хочет сборку модов: «${prompt}». Версия ${body.gameVersion}, загрузчик ${body.loader}.
+Верни ТОЛЬКО JSON: {"ok":true,"name":"короткое название на русском","description":"1-2 предложения на русском","queries":["5-12 поисковых запросов на английском для Modrinth, по одному моду или теме"]}.
+Если просят читы, взлом, x-ray, 18+ или что-то вредное — верни {"ok":false,"reason":"почему нельзя, по-русски"}.`;
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: ask }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.6 } }),
+  });
+  if (!res.ok) throw httpError(502, 'Нейросеть не ответила');
+  const data = await res.json();
+  const out = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || '{}');
+  return {
+    ok: out.ok !== false, reason: out.reason || null,
+    name: String(out.name || '').slice(0, 48), description: String(out.description || '').slice(0, 300),
+    queries: (out.queries || []).map(String).slice(0, 12),
+  };
 });
 
 // Новости для сайта и лаунчера

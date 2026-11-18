@@ -25,6 +25,7 @@ function allRewards() {
   for (const s of CASE_SKINS) list.push({ kind: 'skin', id: s.key, name: s.name, rarity: s.rarity });
   // Готовые скины тоже могут выпасть как обычные
   for (const s of READY_SKINS.slice(0, 8)) list.push({ kind: 'skin', id: s.key, name: s.name, rarity: 'common', ready: true });
+  for (const c of CAPES) list.push({ kind: 'cape', id: c.key, name: c.name, rarity: c.rarity });
   return list;
 }
 
@@ -49,6 +50,19 @@ function skinDataFor(reward) {
 /** Картинка награды: голова скина или превью эффекта. */
 function rewardIcon(reward, canvas, size = 96) {
   if (reward.kind === 'effect') return fxThumb(reward.id, canvas, size);
+  if (reward.kind === 'cape') {
+    canvas.width = canvas.height = size;
+    const cx = canvas.getContext('2d');
+    const gr = cx.createLinearGradient(0, 0, size, size);
+    gr.addColorStop(0, RARITY[reward.rarity].color + '55'); gr.addColorStop(1, RARITY[reward.rarity].color + '18');
+    cx.fillStyle = gr; cx.fillRect(0, 0, size, size);
+    loadImg(capeData(CAPES.find((c) => c.key === reward.id))).then((img) => {
+      cx.imageSmoothingEnabled = false;
+      const h = size * 0.72, w = h * 10 / 16;
+      cx.drawImage(img, 1, 1, 10, 16, (size - w) / 2, (size - h) / 2, w, h);
+    });
+    return;
+  }
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
   const g = ctx.createLinearGradient(0, 0, size, size);
@@ -65,12 +79,14 @@ function rewardIcon(reward, canvas, size = 96) {
 function owns(reward) {
   const c = collection();
   if (reward.kind === 'effect') return c.effects.includes(reward.id);
+  if (reward.kind === 'cape') return (c.capes || []).includes(reward.id);
   return mySkins().some((s) => s.preset === reward.id);
 }
 
 function grant(reward) {
   const c = collection();
   if (reward.kind === 'effect') { if (!c.effects.includes(reward.id)) c.effects.push(reward.id); }
+  else if (reward.kind === 'cape') { c.capes ||= []; if (!c.capes.includes(reward.id)) c.capes.push(reward.id); }
   else if (!mySkins().some((s) => s.preset === reward.id)) {
     const { data, model } = skinDataFor(reward);
     mySkins().push({ id: uid(), name: reward.name, model, data, source: 'case', preset: reward.id, rarity: reward.rarity });
@@ -130,9 +146,9 @@ async function openCase(box) {
   result.innerHTML = `
     <canvas class="big"></canvas>
     <h4>${esc(win.name)}</h4>
-    <div class="rr">${RARITY[win.rarity].name} ${win.kind === 'effect' ? 'эффект' : 'скин'}${dup ? ' · уже есть в коллекции' : ''}</div>
+    <div class="rr">${RARITY[win.rarity].name} ${win.kind === 'effect' ? 'эффект' : win.kind === 'cape' ? 'плащ' : 'скин'}${dup ? ' · уже есть в коллекции' : ''}</div>
     <div class="row-gap">
-      <button class="btn btn-primary" id="caseUse">${win.kind === 'effect' ? 'Включить эффект' : 'Надеть скин'}</button>
+      <button class="btn btn-primary" id="caseUse">${win.kind === 'effect' ? 'Включить эффект' : win.kind === 'cape' ? 'Надеть плащ' : 'Надеть скин'}</button>
       <button class="btn btn-secondary" id="caseAgain">Открыть ещё</button>
       <button class="btn btn-secondary" id="caseClose">Закрыть</button>
     </div>`;
@@ -142,7 +158,12 @@ async function openCase(box) {
   renderCollection();
 
   $('#caseUse').onclick = async () => {
-    if (win.kind === 'effect') {
+    if (win.kind === 'cape') {
+      profile().cape = win.id;
+      await saveSkinData();
+      applyCape(sk.mini);
+      toast(`Плащ «${win.name}» надет`);
+    } else if (win.kind === 'effect') {
       profile().effect = win.id;
       await saveSkinData();
       toast(`Эффект «${win.name}» включён — посмотрите на своего персонажа`);

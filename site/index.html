@@ -310,6 +310,9 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
       <div class="fact"><div class="k">ID</div><h3>ник под паролем</h3><p>Rionina ID защищает ваш ник: зайти под ним без пароля нельзя.</p></div>
       <div class="fact"><div class="k">7</div><h3>тем оформления</h3><p>Светлая, тёмная, Океан, Закат, Неон — или фон из вашей галереи.</p></div>
       <div class="fact"><div class="k">12</div><h3>эффектов за спиной</h3><p>Выпадают из сундуков и играют позади вашего персонажа.</p></div>
+      <div class="fact"><div class="k">ИИ</div><h3>сборки по описанию</h3><p>Напишите «магия и драконы» — ИИ соберёт моды, модерация проверит сборку.</p></div>
+      <div class="fact"><div class="k">3</div><h3>загрузчика модов</h3><p>Fabric, Forge и NeoForge — сборка создаётся одной кнопкой.</p></div>
+      <div class="fact"><div class="k">F2</div><h3>галерея скриншотов</h3><p>Снимок из игры сразу появляется в лаунчере. Важные моменты — со звёздочкой.</p></div>
     </div>
   </div>
 </section>
@@ -318,7 +321,7 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
   <div class="wrap">
     <span class="eyebrow">Тарифы</span>
     <h2>Rionina Pro</h2>
-    <p class="muted">Лаунчер бесплатный навсегда. Pro добавляет удобства — и пока тоже бесплатен.</p>
+    <p class="muted">Лаунчер бесплатный навсегда. Pro добавляет удобства для тех, кто хочет больше.</p>
     <div class="plans">
       <div class="plan">
         <h3>Обычный</h3>
@@ -335,7 +338,7 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
       </div>
       <div class="plan pro">
         <h3>Pro</h3>
-        <div class="price"><s>$10</s>$0 <small>пока бесплатно</small></div>
+        <div class="price">$10 <small>подписка</small></div>
         <ul>
           <li>Сундуки открываются бесплатно</li>
           <li>Ежедневная награда ×2</li>
@@ -344,7 +347,7 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
           <li>Больше FPS: Sodium, Lithium, FerriteCore, ImmediatelyFast, ModernFix</li>
           <li>Быстрее загрузка: вдвое больше потоков и настроенная Java</li>
         </ul>
-        <p class="note">Включается в лаунчере: вкладка «Rionina Pro».</p>
+        <p class="note">Покупка — в лаунчере, вкладка «Rionina Pro». Оплата картой появится в ближайшем обновлении.</p>
       </div>
     </div>
   </div>
@@ -363,12 +366,12 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
     <div class="dl-card">
       <div>
         <h2>Скачайте Rionina Launcher</h2>
-        <p>Один файл для Windows 10 и 11 — открывается двойным щелчком, установка не нужна.</p>
+        <p>Для Windows 10 и 11: распакуйте архив и запустите «Rionina Launcher». Новые версии лаунчер ставит сам. Для телефона — приложение Bedrock для Android.</p>
       </div>
       <div class="btns">
-        <a class="btn btn-main" id="dlBtn" href="#download">Скачать для Windows</a>
-        <a class="btn btn-ghost" href="#pricing">Посмотреть Pro</a>
-        <span class="dl-note" id="dlNote">Версия 1.3 · ~88 МБ</span>
+        <a class="btn btn-main" id="dlBtn" href="https://github.com/lexayasinskiy2016-afk/rionina-launcher/releases/latest/download/RioninaLauncher-Windows.zip">Скачать для Windows</a>
+        <a class="btn btn-ghost" id="dlApk" href="https://github.com/lexayasinskiy2016-afk/rionina-launcher/releases/latest/download/Rionina-Android.apk">Скачать для Android</a>
+        <span class="dl-note" id="dlNote">Последняя версия · Windows ~137 МБ</span>
       </div>
     </div>
   </div>
@@ -383,10 +386,11 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
 
 <script id="news" type="application/json">
 [
+  { "date": "2026-11-18", "tag": "Вышло", "title": "Rionina 1.4: ИИ-сборки, Forge и чат", "text": "Самое большое обновление: сборки по описанию с модерацией, Forge и NeoForge, чат с друзьями, плащи, галерея скриншотов и автообновление.", "items": ["ИИ-сборки и сборки игроков", "Forge и NeoForge", "Чат с друзьями", "Плащи в сундуках", "Скриншоты по F2", "Лаунчер обновляется сам"] },
   { "date": "2026-11-17", "tag": "Вышло", "title": "Rionina 1.3: друзья, Rionina ID и сундуки", "text": "Аккаунт с паролем защищает ваш ник. Появились друзья и игра в одном мире, ежедневные награды, Rionina Coins и Pro.", "items": ["Вход по нику и паролю", "Друзья и кнопка «Зайти» в мир друга", "Сундуки за монеты и ежедневная награда", "Rionina Pro — пока бесплатно"] },
   { "date": "2026-11-17", "tag": "Вышло", "title": "Rionina 1.2: скины, моды и шейдеры", "text": "3D-скины с редактором, каталог Modrinth, сборки Fabric в один клик, свои ресурс-паки, темы и фон из галереи.", "items": ["Редактор скинов", "Моды, шейдеры, ресурс-паки", "Несколько аккаунтов", "7 тем оформления"] },
-  { "date": "2026-12", "tag": "Скоро", "title": "Rionina для Android", "text": "Новости, серверы и запуск Minecraft Bedrock в одно касание — версия для телефона уже в работе.", "items": [] },
-  { "date": "2027", "tag": "В планах", "title": "Что добавим дальше", "text": "Мы собираем идеи игроков. Вот что уже в списке:", "items": ["Оплата Rionina Pro", "Forge и NeoForge", "Синхронизация скинов и коллекции между компьютерами", "Свои серверы Rionina"] }
+  { "date": "2026-11-18", "tag": "Вышло", "title": "Rionina для Android", "text": "Приложение для телефона: запуск Minecraft Bedrock в одно касание, новости и быстрый вход на серверы.", "items": [] },
+  { "date": "2027", "tag": "В планах", "title": "Что добавим дальше", "text": "Мы собираем идеи игроков. Вот что уже в списке:", "items": ["Оплата Rionina Pro картой", "Синхронизация скинов и коллекции между компьютерами", "Свои серверы Rionina", "Нейросеть для ИИ-сборок"] }
 ]
 </script>
 
@@ -488,13 +492,9 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
   }
   try { renderPosts(JSON.parse(document.getElementById('news').textContent)); } catch (e) { /* без блога */ }
 
-  // На настоящем сервере берём свежие новости и включаем кнопку загрузки
-  fetch('/api/health').then((r) => r.ok && r.json()).then((h) => {
-    if (!h || h.name !== 'Rionina') return;
-    document.getElementById('dlBtn').href = '/download';
-    fetch('/api/news').then((r) => r.json()).then((n) => Array.isArray(n) && n.length && renderPosts(n)).catch(() => {});
-  }).catch(() => {
-    document.getElementById('dlNote').textContent = 'Ссылка на загрузку заработает на rioninalauncher.com';
-  });
+  // Номер последней версии — из файла обновлений релиза
+  fetch('latest.json').then((r) => r.ok && r.json()).then((l) => {
+    if (l && l.version) document.getElementById('dlNote').textContent = `Версия ${l.version} · Windows ~${Math.round((l.zip?.size || 137e6) / 1e6)} МБ`;
+  }).catch(() => {});
 })();
 </script>

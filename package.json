@@ -11,7 +11,9 @@
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux"
+    "dist:linux": "electron-builder --linux",
+    "release": "node scripts/release.js",
+    "site": "node scripts/build-site.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
@@ -39,7 +41,19 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Rionina Launcher",
+      "runAfterFinish": true,
+      "installerLanguages": [
+        "ru_RU"
+      ],
+      "language": "1049",
+      "artifactName": "RioninaLauncher-Setup-${version}.${ext}",
+      "uninstallDisplayName": "Rionina Launcher",
+      "include": "build/installer.nsh"
     },
     "mac": {
       "target": "dmg",
@@ -51,5 +65,8 @@
       "category": "Game",
       "icon": "build/icon.png"
     }
+  },
+  "rionina": {
+    "updateRepo": "lexayasinskiy2016-afk/rionina-launcher"
   }
 }

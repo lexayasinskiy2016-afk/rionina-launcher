@@ -1,5 +1,11 @@
 // Главный процесс Rionina Launcher.
-const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog, protocol, net, nativeImage, Notification } = require('electron');
+const { pathToFileURL } = require('url');
+const { Updater } = require('./core/updater');
+const PKG = require('../package.json');
+
+// Свой протокол для картинок скриншотов (иначе интерфейс не может их показать)
+protocol.registerSchemesAsPrivileged([{ scheme: 'rionina-shot', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const path = require('path');
 const fs = require('fs');
 const { Minecraft } = require('./core/minecraft');
@@ -124,7 +130,12 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  registerShotProtocol();
+  createWindow();
+  setTimeout(checkUpdates, 5000);
+  setInterval(checkUpdates, 6 * 3600e3);
+});
 app.on('window-all-closed', () => app.quit());
 
 // ───────────── IPC ─────────────
@@ -289,7 +300,7 @@ handle('versions:list', async (force) => {
     installed,
   };
 });
-handle('versions:installed', () => mc.listInstalled());
+handle('versions:installed', async () => (await mc.listInstalled()).map((v) => ({ ...v, name: state.buildNames?.[v.id] || null })));
 handle('versions:remove', async (id) => {
   await mc.removeVersion(id);
   // Папку сборки с модами (миры, моды) удаляем только у Fabric-сборок
@@ -344,8 +355,11 @@ handle('content:remove', async ({ type, versionId, file }) => {
 });
 handle('content:install', async ({ type, projectId, versionId }) => {
   const t = await target(versionId);
-  if ((type === 'mod' || type === 'shader') && t.loader !== 'fabric') {
-    throw new Error('Моды и шейдеры работают в сборке Fabric — создайте её во вкладке «Моды»');
+  if (type === 'mod' && !['fabric', 'forge', 'neoforge'].includes(t.loader)) {
+    throw new Error('Моды работают в сборке с модами — создайте её во вкладке «Моды»');
+  }
+  if (type === 'shader' && t.loader !== 'fabric') {
+    throw new Error('Шейдеры ставятся в сборку Fabric — создайте её во вкладке «Моды»');
   }
   const files = [];
   if (type === 'shader') {
@@ -356,7 +370,7 @@ handle('content:install', async ({ type, projectId, versionId }) => {
       }
     }
   }
-  const installed = await modrinth.installProject({ projectId, type, gameVersion: t.gameVersion, gameDir: t.gameDir });
+  const installed = await modrinth.installProject({ projectId, type, gameVersion: t.gameVersion, gameDir: t.gameDir, loader: t.loader });
   files.push(...installed);
   if (type === 'shader') await packs.enableShader(t.gameDir, installed[0]);
   if (type === 'resourcepack') await packs.enableResourcePack(t.gameDir, installed[0]);
@@ -399,6 +413,7 @@ async function launchGame(id, { join = null, host = false } = {}) {
   if (host) hosting = { versionId: id, gameVersion: installed?.gameVersion || id, loader: installed?.loader || null, mods: await mp.modList(mc, id).catch(() => []), address: null };
 
   send('game:state', { state: 'starting', id });
+  watchShots(gameDir);
   game = await mc.launch(id, acc, { ...state, pro: isPro(acc), join }, {
     onLog: (line) => {
       send('game:log', line);
@@ -413,6 +428,7 @@ async function launchGame(id, { join = null, host = false } = {}) {
     },
     onExit: (code) => {
       game = null;
+      setTimeout(stopShotWatch, 3000);
       if (hosting) { hosting = null; send('friends:hosting', null); }
       send('game:state', { state: 'closed', id, code });
       heartbeat();
@@ -528,3 +544,210 @@ async function heartbeat() {
 }
 setInterval(heartbeat, 60_000);
 app.whenReady().then(() => setTimeout(heartbeat, 3000));
+
+// ───────────── Обновления лаунчера ─────────────
+
+const updater = new Updater({
+  repo: PKG.rionina?.updateRepo,
+  currentVersion: app.getVersion(),
+  electronVersion: process.versions.electron,
+  exePath: process.execPath,
+  isPackaged: app.isPackaged,
+});
+let updateInfo = null;
+
+async function checkUpdates() {
+  try {
+    updateInfo = await updater.check();
+    if (updateInfo) send('update:available', updateInfo);
+  } catch { /* нет сети или релизов — проверим позже */ }
+  return updateInfo;
+}
+handle('update:check', () => checkUpdates());
+handle('update:get', () => updateInfo);
+handle('update:download', async () => {
+  await updater.download((p) => send('update:progress', p));
+  return true;
+});
+handle('update:apply', () => updater.apply(() => app.quit()));
+handle('update:site', () => shell.openExternal(`https://github.com/${PKG.rionina?.updateRepo}/releases/latest`));
+
+// ───────────── Скриншоты (F2 в игре) ─────────────
+
+function shotDirs() {
+  const dirs = [path.join(ROOT, 'screenshots')];
+  try {
+    for (const d of fs.readdirSync(path.join(ROOT, 'instances'))) dirs.push(path.join(ROOT, 'instances', d, 'screenshots'));
+  } catch { /* сборок ещё нет */ }
+  return dirs;
+}
+const isShot = (f) => /\.(png|jpe?g)$/i.test(f);
+function shotAllowed(file) {
+  const abs = path.resolve(file);
+  return isShot(abs) && shotDirs().some((d) => abs.startsWith(path.resolve(d) + path.sep));
+}
+
+function listShots() {
+  const out = [];
+  for (const dir of shotDirs()) {
+    let files = [];
+    try { files = fs.readdirSync(dir).filter(isShot); } catch { continue; }
+    const build = path.basename(path.dirname(dir));
+    for (const f of files) {
+      const full = path.join(dir, f);
+      const st = fs.statSync(full);
+      out.push({ path: full, name: f, time: st.mtimeMs, size: st.size, build: build === '.rionina' ? null : build, fav: (state.favShots || []).includes(full) });
+    }
+  }
+  return out.sort((a, b) => b.time - a.time);
+}
+
+const thumbCache = new Map();
+function registerShotProtocol() {
+  protocol.handle('rionina-shot', async (req) => {
+    const u = new URL(req.url);
+    const file = decodeURIComponent(u.searchParams.get('p') || '');
+    if (!shotAllowed(file) || !fs.existsSync(file)) return new Response('Нет файла', { status: 404 });
+    if (u.searchParams.get('thumb')) {
+      const key = file + fs.statSync(file).mtimeMs;
+      if (!thumbCache.has(key)) thumbCache.set(key, nativeImage.createFromPath(file).resize({ width: 480 }).toJPEG(82));
+      return new Response(thumbCache.get(key), { headers: { 'Content-Type': 'image/jpeg' } });
+    }
+    return net.fetch(pathToFileURL(file).toString());
+  });
+}
+
+handle('shots:list', () => listShots());
+handle('shots:fav', (file) => {
+  if (!shotAllowed(file)) throw new Error('Не скриншот');
+  const favs = new Set(state.favShots || []);
+  favs.has(file) ? favs.delete(file) : favs.add(file);
+  state.favShots = [...favs];
+  save();
+  return favs.has(file);
+});
+handle('shots:delete', (file) => {
+  if (!shotAllowed(file)) throw new Error('Не скриншот');
+  fs.rmSync(file, { force: true });
+  state.favShots = (state.favShots || []).filter((f) => f !== file);
+  save();
+});
+handle('shots:open', (file) => { if (shotAllowed(file)) shell.showItemInFolder(file); });
+handle('shots:folder', () => {
+  const dir = path.join(ROOT, 'screenshots');
+  fs.mkdirSync(dir, { recursive: true });
+  return shell.openPath(dir);
+});
+
+// Пока идёт игра, следим за новыми скриншотами и сразу показываем их
+let shotWatchers = [];
+function watchShots(gameDir) {
+  stopShotWatch();
+  const dir = path.join(gameDir, 'screenshots');
+  fs.mkdirSync(dir, { recursive: true });
+  const seen = new Set(fs.readdirSync(dir));
+  const w = fs.watch(dir, (_ev, name) => {
+    if (!name || !isShot(name) || seen.has(name)) return;
+    seen.add(name);
+    setTimeout(() => {
+      const full = path.join(dir, name);
+      if (!fs.existsSync(full)) return;
+      send('shots:new', { path: full, name });
+      if (Notification.isSupported()) new Notification({ title: 'Rionina Launcher', body: 'Скриншот сохранён в галерею', silent: true }).show();
+    }, 700);
+  });
+  shotWatchers.push(w);
+}
+function stopShotWatch() { shotWatchers.forEach((w) => w.close()); shotWatchers = []; }
+
+// ───────────── Forge и NeoForge ─────────────
+
+const loaders = require('./core/loaders');
+handle('loader:versions', async (loader) => {
+  if (loader === 'fabric') return (await modrinth.fabricGameVersions()).map((v) => ({ gameVersion: v }));
+  return loader === 'forge' ? loaders.forgeVersions() : loaders.neoforgeVersions();
+});
+handle('loader:create', async ({ loader, gameVersion }) => {
+  if (loader === 'fabric') {
+    const id = await modrinth.createFabricProfile(path.join(ROOT, 'versions'), gameVersion);
+    enqueue(id);
+    return id;
+  }
+  const key = `${loader}-${gameVersion}`;
+  send('install:state', { id: key, state: 'started' });
+  try {
+    const id = await loaders.installLoader(mc, loader, gameVersion, (p) => send('install:progress', { id: key, ...p }));
+    send('install:state', { id: key, state: 'done' });
+    send('install:state', { id, state: 'done' });
+    return id;
+  } catch (e) {
+    send('install:state', { id: key, state: 'error', error: e.message });
+    throw e;
+  }
+});
+
+// ───────────── ИИ-сборщик и сборки игроков ─────────────
+
+const aibuilder = require('./core/aibuilder');
+
+async function buildFor(loader, gameVersion, progressId) {
+  const onProgress = (p) => send('install:progress', { id: progressId, ...p });
+  send('install:state', { id: progressId, state: 'started' });
+  let id;
+  if (loader === 'fabric') {
+    id = await modrinth.createFabricProfile(path.join(ROOT, 'versions'), gameVersion);
+    if (!(await mc.isInstalled(id))) await mc.install(id, onProgress);
+  } else {
+    const have = (await mc.listInstalled()).find((v) => v.loader === loader && v.gameVersion === gameVersion);
+    id = have && (await mc.isInstalled(have.id)) ? have.id : await loaders.installLoader(mc, loader, gameVersion, onProgress);
+  }
+  return id;
+}
+
+handle('ai:plan', async (params) => {
+  let ai = null;
+  const acc = active();
+  if (acc && ['rionina', 'microsoft'].includes(acc.type)) {
+    ai = await economy.server(acc, 'POST', '/ai/modpack', params).catch(() => null); // нейросеть на сервере, если подключена
+  }
+  const plan = await aibuilder.plan(params, ai);
+  return { ...plan, engine: ai ? 'neural' : 'builtin' };
+});
+
+// Создать сборку по плану: загрузчик + все моды. Каждая сборка — отдельная папка игры.
+handle('ai:create', async ({ plan, gameVersion, loader }) => {
+  const key = `pack-${Date.now()}`;
+  try {
+    const id = await buildFor(loader, gameVersion, key);
+    const gameDir = await mc.gameDir(id);
+    const res = await aibuilder.installPlan({ mods: plan.mods, gameVersion, loader, gameDir }, (p) => send('install:progress', { id: key, ...p }));
+    state.buildNames = { ...(state.buildNames || {}), [id]: plan.name };
+    save();
+    send('install:state', { id: key, state: 'done' });
+    send('install:state', { id, state: 'done' });
+    return { id, ...res };
+  } catch (e) {
+    send('install:state', { id: key, state: 'error', error: e.message });
+    throw e;
+  }
+});
+
+const serverCall = async (method, p, body) => {
+  try {
+    return await economy.server(needAcc(), method, p, body);
+  } catch (e) {
+    if (e.status) throw e;
+    throw new Error('Нужен сервер Rionina — он пока не запущен');
+  }
+};
+handle('packs:list', () => serverCall('GET', '/packs'));
+handle('packs:publish', ({ plan, gameVersion, loader }) => serverCall('POST', '/packs', {
+  name: plan.name, description: plan.description, gameVersion, loader,
+  mods: plan.mods.map((m) => ({ id: m.id, title: m.title, slug: m.slug })),
+}));
+handle('packs:installed', (id) => serverCall('POST', '/packs/install', { id }).catch(() => null));
+
+// ───────────── Чат с друзьями ─────────────
+
+handle('chat:get', ({ nick, after }) => friendsCall('GET', `/chat?with=${encodeURIComponent(nick)}&after=${Number(after) || 0}`));
+handle('chat:send', ({ nick, text }) => friendsCall('POST', '/chat/send', { to: nick, text }));

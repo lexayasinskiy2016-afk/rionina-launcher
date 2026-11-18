@@ -1,31 +1,15 @@
-name: Сборка Rionina Launcher
+name: Android-приложение Rionina
 
+# Собирает приложение Bedrock для Android и прикладывает его к последнему релизу.
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
 
-jobs:
-  desktop:
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: npm install
-      - run: npx electron-builder --publish never
-        env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rionina-${{ matrix.os }}
-          path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.AppImage
+permissions:
+  contents: write
 
+jobs:
   android:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: mobile } }
@@ -38,7 +22,9 @@ jobs:
       - run: npm install
       - run: npm run android
       - run: cd android && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rionina-android
-          path: mobile/android/app/build/outputs/apk/debug/*.apk
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk ../Rionina-Android.apk
+      - name: Приложить к релизу
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          TAG=$(gh release view --json tagName -q .tagName)
+          gh release upload "$TAG" ../Rionina-Android.apk --clobber

@@ -115,7 +115,7 @@ function localMe(eco, acc) {
     nick: acc.name, uuid: acc.uuid, kind: acc.type, coins: eco.coins, pro: !!eco.pro, streak: eco.streak,
     dailyAvailable: dayIndex(eco.lastDaily || 0) !== today,
     nextDaily: DAILY[Math.min(eco.streak, DAILY.length - 1)] * (eco.pro ? 2 : 1),
-    friendsLimit: eco.pro ? 50 : 10, economy: { chests: CHESTS, proPriceUsd: 10, proFree: true }, local: true,
+    friendsLimit: eco.pro ? 50 : 10, economy: { chests: CHESTS, proPriceUsd: 10, proFree: false }, local: true,
   };
 }
 
@@ -192,12 +192,10 @@ class Economy {
   }
 
   async activatePro(acc) {
+    // Pro продаётся за $10; оплата картой подключится позже — бесплатно не выдаём
     try { return await this.server(acc, 'POST', '/pro/activate'); } catch (e) {
       if (!(e instanceof Offline)) throw e;
-      const eco = this.eco(acc);
-      eco.pro = true;
-      this.save();
-      return localMe(eco, acc);
+      throw new Error('Rionina Pro стоит $10 — оплата картой скоро появится');
     }
   }
 }

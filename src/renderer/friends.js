@@ -20,7 +20,7 @@ $('#coinPill').addEventListener('click', () => document.querySelector('.nav[data
 async function renderProTab() {
   const pro = !!st.me?.pro;
   const btn = $('#btnPro');
-  btn.textContent = pro ? '✓ Pro активен' : 'Получить Pro бесплатно';
+  btn.textContent = pro ? '✓ Pro активен' : 'Купить за $10';
   btn.disabled = pro;
   $('#boostCard').classList.toggle('hidden', !pro);
   if (pro) {
@@ -35,7 +35,7 @@ $('#btnPro').addEventListener('click', async () => {
   try {
     setMe(await R.eco.pro());
     toast('Добро пожаловать в Rionina Pro! 🎉');
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(e.message, 6000); }
 });
 
 $('#btnBoost').addEventListener('click', async () => {
@@ -89,6 +89,7 @@ async function loadFriends() {
       <img class="fhead" src="https://mc-heads.net/avatar/${esc(f.uuid)}/64" alt="" />
       <div class="meta"><strong>${esc(f.nick)}${f.pro ? ' <span class="pro-badge">PRO</span>' : ''}</strong><span>${statusText(f)}</span></div>
       ${f.shared ? `<button class="btn btn-primary btn-sm" data-join="${esc(f.nick)}">Зайти</button>` : ''}
+      <button class="btn btn-secondary btn-sm chat-btn" data-chat="${esc(f.nick)}">💬${f.unread ? ` <b class="unread">${f.unread}</b>` : ''}</button>
       <button class="icon-btn" data-rmf="${esc(f.nick)}" title="Удалить из друзей"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>`).join('') : '<div class="empty">Пока нет друзей — добавьте друга по нику слева</div>';
   document.querySelectorAll('#friendsList .fhead').forEach((img) => img.addEventListener('error', () => { img.style.visibility = 'hidden'; }));

@@ -499,3 +499,69 @@ a.ext { color: var(--accent); }
 .pro-item h4 { margin: 8px 0 4px; }
 .pro-item p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
 body.glassy .daily, body.glassy .pro-item { background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(24px); }
+
+/* ───────── Обновление ───────── */
+.update-bar { position: absolute; top: 14px; left: 24px; right: 24px; z-index: 30; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(24px) saturate(1.6); border: 1px solid var(--line); box-shadow: 0 12px 34px rgba(0,0,0,.16); animation: rise .35s; overflow: hidden; }
+.ub-icon { font-size: 20px; }
+.ub-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ub-text span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ub-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
+.ub-progress div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+/* ───────── Скриншоты ───────── */
+kbd { font: 600 12px ui-monospace, monospace; padding: 2px 7px; border-radius: 6px; background: var(--surface); box-shadow: inset 0 -2px 0 var(--line), 0 0 0 1px var(--line); }
+.shots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.shot { position: relative; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; background: var(--surface-2); box-shadow: var(--shadow); padding: 0; transition: transform .15s; }
+.shot:hover { transform: translateY(-2px); }
+.shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shot-meta { position: absolute; left: 8px; bottom: 6px; font-size: 11.5px; font-weight: 600; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+.shot-star { position: absolute; top: 6px; right: 8px; }
+.shot-view { width: min(1100px, 94vw); background: var(--surface); border-radius: 20px; overflow: hidden; box-shadow: 0 40px 100px rgba(0,0,0,.45); animation: rise .25s; }
+.shot-view img { width: 100%; max-height: 74vh; object-fit: contain; background: #000; display: block; }
+.shot-bar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; flex-wrap: wrap; }
+.shot-bar span { flex: 1; min-width: 0; }
+
+/* ───────── ИИ-сборки ───────── */
+.ai-card { background: var(--surface); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;
+  background-image: radial-gradient(60% 120% at 100% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%); }
+.ai-input { height: 84px; padding: 12px 14px; resize: vertical; line-height: 1.45; }
+.ai-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.ai-row .btn-primary { margin-left: auto; }
+.ai-examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-plan { background: var(--surface); border-radius: 22px; padding: 18px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+.ai-plan p { margin: 0; }
+.plan-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.verdict { font-weight: 700; font-size: 13px; padding: 4px 10px; border-radius: 99px; }
+.verdict.ok { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.verdict.bad { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); align-self: flex-start; }
+.plan-name { font-size: 18px; font-weight: 700; }
+.plan-mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.plan-mod { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 12px; padding: 8px 6px 8px 8px; min-width: 0; }
+.plan-mod img, .plan-mod .ph { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--surface); }
+.plan-mod div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.plan-mod strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-mod span { font-size: 11.5px; color: var(--muted); }
+.packs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.pack-card { background: var(--surface); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; }
+.pack-card h4 { margin: 2px 0 0; }
+.pack-card p { margin: 0; }
+.pack-card .btn { align-self: flex-start; margin-top: 6px; }
+.pack-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pill2 { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.loader-seg { margin-top: 10px; }
+
+/* ───────── Чат ───────── */
+.chat { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow); margin-top: 14px; display: flex; flex-direction: column; overflow: hidden; }
+.chat-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.chat-msgs { height: 280px; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 6px; user-select: text; }
+.msg { align-self: flex-start; max-width: 78%; background: var(--surface-2); padding: 7px 11px; border-radius: 14px 14px 14px 4px; display: flex; gap: 8px; align-items: flex-end; font-size: 14px; }
+.msg.mine { align-self: flex-end; background: var(--accent); color: #fff; border-radius: 14px 14px 4px 14px; }
+.msg time { font-size: 10.5px; opacity: .65; white-space: nowrap; }
+.chat-form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+.chat-form input { flex: 1; }
+.chat-btn .unread { background: var(--red); color: #fff; border-radius: 99px; padding: 0 6px; font-size: 11px; }
+
+/* Pro: оплата скоро */
+.pro-soon { margin: 10px 0 0 !important; font-size: 13px; opacity: .85 !important; }
+body.glassy .ai-card, body.glassy .ai-plan, body.glassy .pack-card, body.glassy .chat { background-color: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(24px); }

@@ -17,10 +17,10 @@ async function get(url) {
 const TYPE_DIR = { mod: 'mods', shader: 'shaderpacks', resourcepack: 'resourcepacks' };
 
 /** Поиск. type: mod | shader | resourcepack */
-async function search({ type, query = '', gameVersion, offset = 0, limit = 24, sort = 'downloads' }) {
+async function search({ type, query = '', gameVersion, loader = 'fabric', offset = 0, limit = 24, sort = 'downloads' }) {
   const facets = [[`project_type:${type}`]];
   if (gameVersion) facets.push([`versions:${gameVersion}`]);
-  if (type === 'mod') facets.push(['categories:fabric']);
+  if (type === 'mod') facets.push([`categories:${loader || 'fabric'}`]);
   const url = `${API}/search?query=${encodeURIComponent(query)}&facets=${encodeURIComponent(JSON.stringify(facets))}&index=${sort}&offset=${offset}&limit=${limit}`;
   const data = await get(url);
   return {
@@ -39,8 +39,8 @@ async function search({ type, query = '', gameVersion, offset = 0, limit = 24, s
   };
 }
 
-async function bestVersion(projectId, type, gameVersion) {
-  const loaders = type === 'mod' ? ['fabric'] : type === 'shader' ? ['iris', 'optifine'] : ['minecraft'];
+async function bestVersion(projectId, type, gameVersion, loader = 'fabric') {
+  const loaders = type === 'mod' ? [loader || 'fabric'] : type === 'shader' ? ['iris', 'optifine'] : ['minecraft'];
   const params = `loaders=${encodeURIComponent(JSON.stringify(loaders))}${gameVersion ? `&game_versions=${encodeURIComponent(JSON.stringify([gameVersion]))}` : ''}`;
   let list = await get(`${API}/project/${projectId}/version?${params}`);
   if (!list.length && type !== 'mod' && gameVersion) list = await get(`${API}/project/${projectId}/version?loaders=${encodeURIComponent(JSON.stringify(loaders))}`);
@@ -52,10 +52,10 @@ async function bestVersion(projectId, type, gameVersion) {
  * Устанавливает проект и (для модов) все обязательные зависимости.
  * Возвращает список установленных файлов.
  */
-async function installProject({ projectId, type, gameVersion, gameDir }, seen = new Set()) {
+async function installProject({ projectId, type, gameVersion, gameDir, loader = 'fabric' }, seen = new Set()) {
   if (seen.has(projectId)) return [];
   seen.add(projectId);
-  const ver = await bestVersion(projectId, type, gameVersion);
+  const ver = await bestVersion(projectId, type, gameVersion, loader);
   const file = ver.files.find((f) => f.primary) || ver.files[0];
   const dir = path.join(gameDir, TYPE_DIR[type]);
   await fsp.mkdir(dir, { recursive: true });
@@ -66,7 +66,7 @@ async function installProject({ projectId, type, gameVersion, gameDir }, seen = 
     for (const dep of ver.dependencies || []) {
       if (dep.dependency_type !== 'required' || !dep.project_id) continue;
       if (await hasProject(dir, dep.project_id)) continue;
-      out.push(...(await installProject({ projectId: dep.project_id, type: 'mod', gameVersion, gameDir }, seen)));
+      out.push(...(await installProject({ projectId: dep.project_id, type: 'mod', gameVersion, gameDir, loader }, seen)));
     }
   }
   return out;

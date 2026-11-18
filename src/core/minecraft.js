@@ -59,7 +59,7 @@ class Minecraft {
         const st = await fsp.stat(path.join(dir, MARKER));
         out.push({
           id, type: json.type, releaseTime: json.releaseTime, installedAt: st.mtimeMs,
-          loader: json.inheritsFrom ? (/fabric/i.test(id) ? 'fabric' : 'modded') : null,
+          loader: json.inheritsFrom ? (/neoforge/i.test(id) ? 'neoforge' : /forge/i.test(id) ? 'forge' : /fabric/i.test(id) ? 'fabric' : 'modded') : null,
           gameVersion: json.inheritsFrom || id,
         });
       } catch { /* повреждённая версия — пропускаем */ }
@@ -164,7 +164,8 @@ class Minecraft {
     // Родительская версия могла быть удалена — тогда ставим её заново
     if (!(await this.isInstalled(json.inheritsFrom))) await this.install(json.inheritsFrom, onProgress);
     const libraries = this.dirs().libraries;
-    const jobs = json.libraries.filter((l) => allowed(l.rules)).map((lib) => {
+    // Файлы с пустой ссылкой собирает сам установщик Forge — их не качаем
+    const jobs = json.libraries.filter((l) => allowed(l.rules) && !(l.downloads?.artifact && !l.downloads.artifact.url)).map((lib) => {
       const dest = this.libraryPath(lib);
       const art = lib.downloads?.artifact;
       const url = art?.url || `${(lib.url || LIBRARIES_URL).replace(/\/?$/, '/')}${path.relative(libraries, dest).split(path.sep).join('/')}`;
