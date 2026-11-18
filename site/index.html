@@ -493,8 +493,10 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
   try { renderPosts(JSON.parse(document.getElementById('news').textContent)); } catch (e) { /* без блога */ }
 
   // Номер последней версии — из файла обновлений релиза
-  fetch('latest.json').then((r) => r.ok && r.json()).then((l) => {
-    if (l && l.version) document.getElementById('dlNote').textContent = `Версия ${l.version} · Windows ~${Math.round((l.zip?.size || 137e6) / 1e6)} МБ`;
+  fetch('https://api.github.com/repos/lexayasinskiy2016-afk/rionina-launcher/releases/latest').then((r) => r.ok && r.json()).then((rel) => {
+    if (!rel || !rel.tag_name) return;
+    const zip = (rel.assets || []).find((a) => a.name === 'RioninaLauncher-Windows.zip');
+    document.getElementById('dlNote').textContent = `Версия ${rel.tag_name.replace(/^v/, '')}${zip ? ` · Windows ~${Math.round(zip.size / 1e6)} МБ` : ''}`;
   }).catch(() => {});
 })();
 </script>

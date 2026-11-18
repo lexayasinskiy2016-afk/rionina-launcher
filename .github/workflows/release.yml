@@ -1,0 +1,58 @@
+name: Выпуск Rionina Launcher
+
+# Запускается, когда scripts/release.js отправляет тег вида v1.5.0.
+# Собирает лаунчер на Windows, приложение для Android и публикует релиз —
+# после этого у игроков появляется «Обновите Rionina Launcher».
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install
+      - run: npx electron-builder --win dir --x64 --publish never
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
+      - name: Упаковать
+        shell: pwsh
+        run: |
+          Rename-Item "dist\win-unpacked" "Rionina Launcher"
+          New-Item -ItemType Directory -Force release | Out-Null
+          Compress-Archive -Path "dist\Rionina Launcher" -DestinationPath "release\RioninaLauncher-Windows.zip" -CompressionLevel Optimal
+          Copy-Item "dist\Rionina Launcher\resources\app.asar" "release\app.asar"
+          node scripts/make-latest.js release
+      - name: Опубликовать релиз
+        shell: pwsh
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          $notes = node -e "const n=require('./release-notes.json');console.log((n.notes||[]).map(x=>'- '+x).join('\n')||'Обновление Rionina Launcher')"
+          gh release create "${{ github.ref_name }}" --title "Rionina Launcher ${{ github.ref_name }}" --notes "$notes" release/latest.json release/app.asar release/RioninaLauncher-Windows.zip
+
+  android:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - name: Собрать приложение Bedrock для Android
+        working-directory: mobile
+        run: |
+          npm install
+          npm run android
+          cd android && ./gradlew assembleDebug
+      - name: Приложить к релизу
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk Rionina-Android.apk
+          gh release upload "${{ github.ref_name }}" Rionina-Android.apk --clobber
