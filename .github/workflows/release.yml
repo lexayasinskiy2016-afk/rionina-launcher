@@ -1,18 +1,35 @@
 name: Выпуск Rionina Launcher
 
-# Запускается, когда scripts/release.js отправляет тег вида v1.5.0.
-# Собирает лаунчер на Windows, приложение для Android и публикует релиз —
+# Запускается, когда scripts/release.js меняет release-notes.json (новая версия).
+# Собирает лаунчер на Windows, приложение для Android и публикует релиз v<версия> —
 # после этого у игроков появляется «Обновите Rionina Launcher».
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: ['release-notes.json', '.github/workflows/release.yml']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      exists: ${{ steps.v.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+
   windows:
+    needs: version
+    if: needs.version.outputs.exists == 'false'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,10 +51,10 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           $notes = node -e "const n=require('./release-notes.json');console.log((n.notes||[]).map(x=>'- '+x).join('\n')||'Обновление Rionina Launcher')"
-          gh release create "${{ github.ref_name }}" --title "Rionina Launcher ${{ github.ref_name }}" --notes "$notes" release/latest.json release/app.asar release/RioninaLauncher-Windows.zip
+          gh release create "${{ needs.version.outputs.tag }}" --target "${{ github.sha }}" --title "Rionina Launcher ${{ needs.version.outputs.tag }}" --notes "$notes" release/latest.json release/app.asar release/RioninaLauncher-Windows.zip
 
   android:
-    needs: windows
+    needs: [version, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,4 +72,4 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           cp mobile/android/app/build/outputs/apk/debug/app-debug.apk Rionina-Android.apk
-          gh release upload "${{ github.ref_name }}" Rionina-Android.apk --clobber
+          gh release upload "${{ needs.version.outputs.tag }}" Rionina-Android.apk --clobber

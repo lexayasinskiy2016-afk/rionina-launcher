@@ -4,7 +4,7 @@
 //   node scripts/release.js 1.5.0 "Главное" "Что нового 2" "Что нового 3"
 //
 // Ставит номер версии, записывает «что нового», добавляет новость на сайт,
-// делает коммит и тег v1.5.0 и отправляет на GitHub. Дальше GitHub сам
+// делает коммит и отправляет на GitHub. Дальше GitHub сам
 // собирает Windows-версию и Android-приложение и публикует релиз —
 // у игроков появляется «Обновите Rionina Launcher».
 const fs = require('fs');
@@ -37,7 +37,6 @@ if (notes.length && html.includes(marker) && !html.includes(`Rionina ${version}`
 
 git('add', 'package.json', 'release-notes.json', 'site/index.html');
 git('-c', 'user.name=Rionina', '-c', 'user.email=noreply@rionina.local', 'commit', '-m', `Rionina Launcher ${version}`);
-git('tag', `v${version}`);
-git('-c', 'push.negotiate=true', 'push', 'origin', 'HEAD', `v${version}`);
+git('-c', 'push.negotiate=true', 'push', 'origin', 'HEAD');
 console.log(`\n✔ Версия ${version} отправлена. GitHub соберёт и опубликует её минут за 10:`);
 console.log(`  https://github.com/${pkg.rionina.updateRepo}/actions`);
