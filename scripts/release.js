@@ -12,7 +12,9 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const [version, ...notes] = process.argv.slice(2);
+// По умолчанию обновление обязательное (без него «Играть» не работает); --optional — можно отложить
+const optional = process.argv.includes('--optional');
+const [version, ...notes] = process.argv.slice(2).filter((a) => a !== '--optional');
 if (!/^\d+\.\d+\.\d+$/.test(version || '')) {
   console.error('Укажите версию: node scripts/release.js 1.5.0 "Что нового" "Ещё что нового"');
   process.exit(1);
@@ -23,7 +25,7 @@ const pkgFile = path.join(ROOT, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'));
 pkg.version = version;
 fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n');
-fs.writeFileSync(path.join(ROOT, 'release-notes.json'), JSON.stringify({ version, notes }, null, 2) + '\n');
+fs.writeFileSync(path.join(ROOT, 'release-notes.json'), JSON.stringify({ version, notes, mandatory: !optional }, null, 2) + '\n');
 
 // Новость на сайт
 const sitePage = path.join(ROOT, 'site', 'index.html');

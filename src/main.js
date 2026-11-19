@@ -416,6 +416,7 @@ handle('packs:installOwn', async ({ packId, versionId }) => {
 let hosting = null; // { versionId, gameVersion, mods, address }
 
 async function launchGame(id, { join = null, host = false } = {}) {
+  requireUpToDate();
   if (game) throw new Error('Игра уже запущена');
   const acc = active();
   if (!acc) throw new Error('Сначала войдите в аккаунт');
@@ -474,6 +475,12 @@ async function launchGame(id, { join = null, host = false } = {}) {
 }
 
 handle('game:launch', (id) => launchGame(id));
+
+function requireUpToDate() {
+  if (updateInfo?.mandatory && app.isPackaged) {
+    throw new Error(`Сначала обновите Rionina Launcher до версии ${updateInfo.version} — без обновления играть нельзя`);
+  }
+}
 handle('game:stop', () => { if (game) game.kill(); });
 
 // ───────────── Bedrock ─────────────

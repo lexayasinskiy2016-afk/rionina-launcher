@@ -8,7 +8,8 @@ const dir = process.argv[2] || 'release';
 const root = path.join(__dirname, '..');
 const pkg = require(path.join(root, 'package.json'));
 let notes = [];
-try { notes = require(path.join(root, 'release-notes.json')).notes || []; } catch { /* без заметок */ }
+let mandatory = false;
+try { const rn = require(path.join(root, 'release-notes.json')); notes = rn.notes || []; mandatory = !!rn.mandatory; } catch { /* без заметок */ }
 
 const info = (name) => {
   const file = path.join(dir, name);
@@ -19,6 +20,7 @@ const latest = {
   version: pkg.version,
   date: new Date().toISOString().slice(0, 10),
   notes,
+  mandatory, // без этой версии играть нельзя
   electron: require(path.join(root, 'node_modules', 'electron', 'package.json')).version,
   asar: info('app.asar'),
   zip: info('RioninaLauncher-Windows.zip'),

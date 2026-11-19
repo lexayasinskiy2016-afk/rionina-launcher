@@ -635,3 +635,14 @@ body.glassy .stat, body.glassy .ach, body.glassy .add-server { background: color
 
 /* Не заезжать под кнопки окна в Windows */
 body:not(.mac) .call-bar, body:not(.mac) .update-bar { right: 130px; }
+
+/* ───────── Что нового ───────── */
+.wn-card { width: min(520px, 92vw); background: var(--surface); border-radius: 26px; padding: 30px; box-shadow: 0 40px 100px rgba(0,0,0,.4); animation: rise .3s; }
+.wn-badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; color: #fff; background: linear-gradient(135deg, #23a653, #1f6fe0); }
+.wn-card h2 { margin: 12px 0 6px; font-size: 26px; letter-spacing: -.02em; }
+.wn-lead { margin: 0 0 8px; color: var(--muted); }
+.wn-card h4 { margin: 14px 0 6px; }
+.wn-card ul { margin: 0 0 6px; padding-left: 20px; line-height: 1.7; }
+.wn-must { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #ff9f0a 16%, transparent); font-weight: 600; font-size: 14px; }
+.wn-card .row-gap { margin-top: 18px; }
+.btn-play.locked { background: linear-gradient(180deg, #8e8e93, #6e6e73); box-shadow: none; }

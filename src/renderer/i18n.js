@@ -156,11 +156,14 @@ const EN = {
   // Обновления
   'Обновите Rionina Launcher до новой версии': 'Update Rionina Launcher to the new version', 'Обновить': 'Update', 'Скачивание…': 'Downloading…', 'Перезапустить': 'Restart',
   'Язык': 'Language', 'Русский и English': 'Russian and English',
+  'Обновите Rionina Launcher': 'Update Rionina Launcher', 'Что добавили': "What's new", 'Обновить сейчас': 'Update now',
+  '⚠️ Это обязательное обновление — без него играть нельзя.': '⚠️ This update is required — you cannot play without it.', 'Сначала обновите': 'Update first',
 };
 
 // Фразы с числами и именами
 const EN_PATTERNS = [
   [/^Обновите Rionina Launcher до версии (.+)$/, 'Update Rionina Launcher to version $1'],
+  [/^Новая версия (.+)$/, 'New version $1'],
   [/^Версия (.+) готова — перезапустите лаунчер$/, 'Version $1 is ready — restart the launcher'],
   [/^Minecraft (.+) \(будет установлена\)$/, 'Minecraft $1 (will be installed)'],
   [/^Уровень (\d+)$/, 'Level $1'], [/^ещё (\d+) опыта до (\d+)$/, '$1 more XP to level $2'],

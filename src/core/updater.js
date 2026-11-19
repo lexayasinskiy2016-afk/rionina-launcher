@@ -50,7 +50,7 @@ class Updater {
     const latest = await res.json();
     this.latest = latest;
     if (!newer(latest.version, this.current)) return null;
-    return { version: latest.version, notes: latest.notes || [], date: latest.date, full: latest.electron !== this.electron };
+    return { version: latest.version, notes: latest.notes || [], date: latest.date, full: latest.electron !== this.electron, mandatory: !!latest.mandatory };
   }
 
   /** Скачивает обновление. onProgress({ done, total }). */

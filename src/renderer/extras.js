@@ -10,7 +10,38 @@ function showUpdate(info) {
   $('#ubTitle').textContent = `Обновите Rionina Launcher до версии ${info.version}`;
   $('#ubNotes').textContent = (info.notes || []).slice(0, 3).join(' · ');
   $('#updateBar').classList.remove('hidden');
+  $('#ubClose').classList.toggle('hidden', !!info.mandatory);
+  if (info.mandatory) lockPlay();
+  showWhatsNew(info);
 }
+
+// Окно «Вышла новая версия» со списком того, что добавили
+function showWhatsNew(info) {
+  const box = $('#whatsNew');
+  const notes = info.notes || [];
+  box.querySelector('.wn-card').innerHTML = `
+    <div class="wn-badge">Новая версия ${esc(info.version)}</div>
+    <h2>Обновите Rionina Launcher</h2>
+    ${notes[0] ? `<p class="wn-lead">${esc(notes[0])}</p>` : ''}
+    ${notes.length > 1 ? `<h4>Что добавили</h4><ul>${notes.slice(1).map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+    ${info.mandatory ? '<p class="wn-must">⚠️ Это обязательное обновление — без него играть нельзя.</p>' : ''}
+    <div class="row-gap">
+      <button class="btn btn-primary" id="wnUpdate">Обновить сейчас</button>
+      ${info.mandatory ? '' : '<button class="btn btn-secondary" id="wnLater">Позже</button>'}
+    </div>`;
+  box.classList.remove('hidden');
+  $('#wnUpdate').addEventListener('click', () => { box.classList.add('hidden'); $('#ubBtn').click(); });
+  $('#wnLater')?.addEventListener('click', () => box.classList.add('hidden'));
+}
+
+function lockPlay() {
+  const b = $('#btnPlay');
+  b.disabled = true;
+  b.textContent = 'Сначала обновите';
+  b.classList.add('locked');
+}
+// Пока обязательное обновление не поставлено, «Играть» снова блокируется после любой перерисовки
+setInterval(() => { if (upd.info?.mandatory && !$('#btnPlay').classList.contains('running')) lockPlay(); }, 1000);
 
 R.onUpdate(showUpdate);
 R.update.get().then(showUpdate).catch(() => {});
