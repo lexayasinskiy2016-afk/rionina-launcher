@@ -204,6 +204,7 @@ async function createPack(plan, gameVersion, loader, btn, packId) {
   try {
     const res = await R.ai.create({ plan, gameVersion, loader });
     if (packId) R.packs.installed(packId);
+    unlock('ai_pack_1');
     await loadVersions();
     selectVersion(res.id);
     btn.textContent = '✓ Готово — нажмите «Играть»';
@@ -541,6 +542,7 @@ async function installMod() {
   try {
     await R.aimods.install({ mod: am.mod, versionId: am.versionId });
     b.textContent = '✓ Установлено';
+    unlock('ai_mod_1');
     toast(`Мод «${am.mod.name}» в игре! Скрафтите предметы на верстаке. В новом мире: выйдите и зайдите снова.`, 8000);
     selectVersion(am.versionId);
     loadMyMods();

@@ -19,7 +19,7 @@ class RioninaApi {
     if (this.health && this.health.base === base && Date.now() - this.health.at < 60_000) return this.health.ok;
     let ok = false;
     try {
-      const res = await fetch(`${base.replace(/\/$/, '')}/api/health`, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(`${base.replace(/\/$/, '')}/api/health`, { signal: AbortSignal.timeout(20000) }); // бесплатный сервер может просыпаться
       ok = res.ok && (await res.json()).name === 'Rionina';
     } catch { ok = false; }
     this.health = { base, ok, at: Date.now() };
@@ -109,9 +109,16 @@ async function authRionina(api, { mode, nick, password }, accounts) {
 // ───────────── Экономика ─────────────
 const dayIndex = (t) => Math.floor((t + 3 * 3600e3) / 864e5);
 
+const LOCAL_ACH = {
+  first_launch: 20, play_1h: 30, play_10h: 100, chest_10: 50, friend_1: 30, friend_5: 60, streak_7: 100,
+  screenshot_1: 20, ai_mod_1: 50, ai_pack_1: 30, cape_1: 30, server_1: 20, call_1: 20, skin_1: 20,
+};
+
 function localMe(eco, acc) {
   const today = dayIndex(Date.now());
   return {
+    stats: { playMinutes: eco.playMinutes || 0, chestsOpened: eco.chestsOpened || 0, friends: 0 },
+    achievements: eco.achievements || [],
     nick: acc.name, uuid: acc.uuid, kind: acc.type, coins: eco.coins, pro: !!eco.pro, streak: eco.streak,
     dailyAvailable: dayIndex(eco.lastDaily || 0) !== today,
     nextDaily: DAILY[Math.min(eco.streak, DAILY.length - 1)] * (eco.pro ? 2 : 1),
@@ -186,8 +193,38 @@ class Economy {
         if (eco.coins < price) throw new Error(`Не хватает монет: нужно ${price}`);
         eco.coins -= price;
       }
+      eco.chestsOpened = (eco.chestsOpened || 0) + 1;
       this.save();
       return { paid: eco.pro ? 0 : price, me: localMe(eco, acc) };
+    }
+  }
+
+  async playtime(acc, minutes) {
+    try { return await this.server(acc, 'POST', '/playtime', { minutes }); } catch (e) {
+      if (!(e instanceof Offline)) throw e;
+      const eco = this.eco(acc);
+      const before = Math.floor((eco.playMinutes || 0) / 30);
+      eco.playMinutes = (eco.playMinutes || 0) + Math.max(0, Math.min(600, Math.round(minutes)));
+      const earned = (Math.floor(eco.playMinutes / 30) - before) * 10;
+      eco.coins += earned;
+      this.save();
+      return { added: minutes, earned, me: localMe(eco, acc) };
+    }
+  }
+
+  async achievement(acc, id) {
+    try { return await this.server(acc, 'POST', '/achievement', { id }); } catch (e) {
+      if (!(e instanceof Offline)) throw e;
+      const eco = this.eco(acc);
+      eco.achievements ||= [];
+      if (!LOCAL_ACH[id]) throw new Error('Нет такого достижения');
+      if (eco.achievements.includes(id)) return { reward: 0, me: localMe(eco, acc) };
+      const checks = { play_1h: (eco.playMinutes || 0) >= 60, play_10h: (eco.playMinutes || 0) >= 600, chest_10: (eco.chestsOpened || 0) >= 10, streak_7: (eco.streak || 0) >= 7 };
+      if (id in checks && !checks[id]) throw new Error('Достижение ещё не выполнено');
+      eco.achievements.push(id);
+      eco.coins += LOCAL_ACH[id];
+      this.save();
+      return { reward: LOCAL_ACH[id], me: localMe(eco, acc) };
     }
   }
 

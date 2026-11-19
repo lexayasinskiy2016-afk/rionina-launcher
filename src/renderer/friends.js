@@ -2,12 +2,12 @@
 
 // ───────────── Профиль Rionina: монеты и Pro ─────────────
 
-function setMe(me) {
+var setMe = function setMe(me) {
   st.me = me;
   $('#coinCount').textContent = me ? me.coins.toLocaleString('ru-RU') : '—';
   $('#proBadge').classList.toggle('hidden', !me?.pro);
   renderProTab();
-}
+};
 
 async function refreshMe() {
   try { setMe(await R.eco.me()); } catch { setMe(null); }
@@ -67,6 +67,8 @@ function statusText(f) {
 async function loadFriends() {
   try {
     fr.data = await R.friends.list();
+    if (fr.data.friends.length >= 1) unlock('friend_1');
+    if (fr.data.friends.length >= 5) unlock('friend_5');
   } catch (e) {
     $('#friendsList').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
     $('#friendsLimit').textContent = '';
@@ -90,6 +92,7 @@ async function loadFriends() {
       <div class="meta"><strong>${esc(f.nick)}${f.pro ? ' <span class="pro-badge">PRO</span>' : ''}</strong><span>${statusText(f)}</span></div>
       ${f.shared ? `<button class="btn btn-primary btn-sm" data-join="${esc(f.nick)}">Зайти</button>` : ''}
       <button class="btn btn-secondary btn-sm chat-btn" data-chat="${esc(f.nick)}">💬${f.unread ? ` <b class="unread">${f.unread}</b>` : ''}</button>
+      <button class="btn btn-secondary btn-sm" data-call="${esc(f.nick)}" title="Голосовой звонок">📞</button>
       <button class="icon-btn" data-rmf="${esc(f.nick)}" title="Удалить из друзей"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>`).join('') : '<div class="empty">Пока нет друзей — добавьте друга по нику слева</div>';
   document.querySelectorAll('#friendsList .fhead').forEach((img) => img.addEventListener('error', () => { img.style.visibility = 'hidden'; }));

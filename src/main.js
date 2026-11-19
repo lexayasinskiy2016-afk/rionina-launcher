@@ -79,7 +79,24 @@ function save() {
   fs.writeFileSync(DATA, JSON.stringify(out, null, 2));
 }
 
-const api = new RioninaApi(() => state.server || DEFAULT_SERVER);
+// Адрес сервера: свой (из настроек) или тот, что указан на сайте Rionina (site/config.json)
+const customServer = () => (state.server && state.server !== DEFAULT_SERVER ? state.server : null);
+const api = new RioninaApi(() => customServer() || state.remoteServer || DEFAULT_SERVER);
+async function loadRemoteConfig() {
+  const [owner, repo] = String(PKG.rionina?.updateRepo || '').split('/');
+  if (!owner) return;
+  try {
+    const res = await fetch(`https://${owner}.github.io/${repo}/config.json?t=${Date.now()}`, { signal: AbortSignal.timeout(10000) });
+    const cfg = await res.json();
+    const url = /^https?:\/\/[\w.-]+(:\d+)?\/?$/.test(cfg.server || '') ? cfg.server.replace(/\/$/, '') : null;
+    if (url !== (state.remoteServer || null)) {
+      state.remoteServer = url;
+      api.health = null;
+      save();
+      send('server:changed', url);
+    }
+  } catch { /* без сети — оставим прошлый адрес */ }
+}
 const economy = new Economy(api, state, () => save());
 const proCache = new Map(); // uuid → Pro (из последнего ответа сервера)
 const isPro = (acc) => !!acc && !!proCache.get(acc.uuid);
@@ -139,6 +156,11 @@ app.whenReady().then(() => {
   registerShotProtocol();
   createWindow();
   setTimeout(checkUpdates, 5000);
+  loadRemoteConfig();
+  // Голосовые звонки: разрешаем лаунчеру микрофон
+  const { session } = require('electron');
+  session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media'));
+  session.defaultSession.setPermissionCheckHandler((_wc, perm) => perm === 'media');
   setInterval(checkUpdates, 6 * 3600e3);
 });
 app.on('window-all-closed', () => app.quit());
@@ -215,7 +237,7 @@ handle('settings:get', () => {
 });
 handle('settings:set', (patch) => {
   if ('server' in patch) {
-    const url = String(patch.server || '').trim() || DEFAULT_SERVER;
+    const url = String(patch.server || '').trim() || DEFAULT_SERVER; // пусто — сервер с сайта Rionina
     if (!/^https?:\/\/[\w.-]+(:\d+)?\/?$/.test(url)) throw new Error('Адрес сервера вида https://rioninalauncher.com');
     state.server = url.replace(/\/$/, '');
   }
@@ -419,6 +441,7 @@ async function launchGame(id, { join = null, host = false } = {}) {
 
   send('game:state', { state: 'starting', id });
   await aimods.syncWorlds(gameDir).catch(() => {}); // ИИ-моды — во все миры
+  startPlayClock(acc);
   watchShots(gameDir);
   game = await mc.launch(id, acc, { ...state, pro: isPro(acc), join }, {
     onLog: (line) => {
@@ -434,6 +457,7 @@ async function launchGame(id, { join = null, host = false } = {}) {
     },
     onExit: (code) => {
       game = null;
+      stopPlayClock();
       setTimeout(stopShotWatch, 3000);
       if (hosting) { hosting = null; send('friends:hosting', null); }
       send('game:state', { state: 'closed', id, code });
@@ -787,3 +811,65 @@ handle('aimods:remove', async ({ versionId, ns }) => {
   const t = await target(versionId);
   await aimods.remove(t.gameDir, ns);
 });
+
+// ───────────── Время в игре, достижения ─────────────
+
+let playClock = null;
+function reportPlay(acc, minutes) {
+  if (minutes < 1) return;
+  economy.playtime(acc, minutes).then((r) => {
+    send('eco:changed', r.me);
+    if (r.earned) send('eco:earned', { coins: r.earned, reason: 'за время в игре' });
+  }).catch(() => {});
+}
+function startPlayClock(acc) {
+  stopPlayClock();
+  playClock = { acc, last: Date.now() };
+  playClock.timer = setInterval(() => {
+    const m = Math.floor((Date.now() - playClock.last) / 60000);
+    if (m >= 10) { playClock.last += m * 60000; reportPlay(acc, m); }
+  }, 60000);
+}
+function stopPlayClock() {
+  if (!playClock) return;
+  clearInterval(playClock.timer);
+  reportPlay(playClock.acc, Math.floor((Date.now() - playClock.last) / 60000));
+  playClock = null;
+}
+handle('eco:achievement', (id) => economy.achievement(needAcc(), id));
+handle('server:info', () => ({ url: customServer() || state.remoteServer || null, custom: !!customServer() }));
+
+// ───────────── Серверы ─────────────
+
+const servers = require('./core/servers');
+const serverList = () => (state.servers ||= servers.DEFAULT_SERVERS.map((x) => ({ ...x })));
+handle('servers:list', () => serverList());
+handle('servers:add', ({ name, address }) => {
+  const a = String(address || '').trim().toLowerCase();
+  if (!/^[a-z0-9.-]+(:\d{1,5})?$/.test(a)) throw new Error('Адрес вида play.example.net или play.example.net:25565');
+  const list = serverList();
+  if (list.some((x) => x.address === a)) throw new Error('Такой сервер уже есть');
+  list.unshift({ name: String(name || a).trim().slice(0, 32) || a, address: a });
+  save();
+  return list;
+});
+handle('servers:remove', (address) => { state.servers = serverList().filter((x) => x.address !== address); save(); return state.servers; });
+handle('servers:ping', (address) => servers.ping(address));
+handle('servers:play', async ({ address, versionId }) => {
+  let id = versionId;
+  if (!id) {
+    // Версия под сервер: из его ответа, иначе выбранная
+    const info = await servers.ping(address).catch(() => null);
+    const gv = info && servers.gameVersionOf(info.version);
+    const installed = await mc.listInstalled();
+    id = (gv && installed.find((v) => v.id === gv)?.id) || (gv && (await mc.getManifest()).versions.some((v) => v.id === gv) ? gv : null) || state.selectedVersion;
+  }
+  if (!id) throw new Error('Выберите версию игры');
+  await launchGame(id, { join: address });
+  return id;
+});
+
+// ───────────── Голосовые звонки (сигналы WebRTC через сервер) ─────────────
+
+handle('call:signal', ({ to, data }) => friendsCall('POST', '/call/signal', { to, data }));
+handle('call:poll', () => friendsCall('GET', '/call/poll'));

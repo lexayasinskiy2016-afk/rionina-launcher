@@ -24,16 +24,42 @@ const ONLINE_MS = 150_000; // считаем онлайн, если лаунче
 
 // ───────────── Хранилище (JSON-файл) ─────────────
 let db = { users: {}, sessions: {}, requests: [], chats: {}, unread: {}, packs: [] };
-try { db = { ...db, ...JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) }; } catch { /* новая база */ }
+
+// Где хранить данные: в Postgres (бесплатный Neon), если задан DATABASE_URL, иначе в файле.
+// В Postgres вся база лежит одной JSON-строкой — просто и надёжно для небольшого проекта.
+const DATABASE_URL = process.env.DATABASE_URL;
+let pg = null;
+async function loadDb() {
+  if (DATABASE_URL) {
+    const { Pool } = require('pg');
+    pg = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 3 });
+    await pg.query('CREATE TABLE IF NOT EXISTS rionina_store (id INT PRIMARY KEY, data JSONB NOT NULL, updated TIMESTAMPTZ DEFAULT now())');
+    const r = await pg.query('SELECT data FROM rionina_store WHERE id = 1');
+    if (r.rows[0]) db = { ...db, ...r.rows[0].data };
+    console.log(`База: Postgres, игроков ${Object.keys(db.users).length}`);
+  } else {
+    try { db = { ...db, ...JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) }; } catch { /* новая база */ }
+    console.log(`База: файл ${DB_FILE}`);
+  }
+}
 let saveTimer = null;
+let saving = Promise.resolve();
 function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    const tmp = DB_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(db));
-    fs.renameSync(tmp, DB_FILE);
-  }, 200);
+    const snapshot = JSON.stringify(db);
+    if (pg) {
+      saving = saving.then(() => pg.query(
+        'INSERT INTO rionina_store (id, data, updated) VALUES (1, $1::jsonb, now()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated = now()',
+        [snapshot],
+      )).catch((e) => console.error('Не удалось сохранить базу:', e.message));
+    } else {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      const tmp = DB_FILE + '.tmp';
+      fs.writeFileSync(tmp, snapshot);
+      fs.renameSync(tmp, DB_FILE);
+    }
+  }, pg ? 1000 : 200);
 }
 
 const lower = (s) => String(s || '').toLowerCase();
@@ -93,6 +119,8 @@ function me(u) {
     nick: u.nick, uuid: u.uuid, kind: u.kind, coins: u.coins, pro: isPro(u),
     streak: u.streak, dailyAvailable: dayIndex(u.lastDaily) !== today,
     nextDaily: ECONOMY.daily[Math.min(u.streak, ECONOMY.daily.length - 1)] * (isPro(u) ? 2 : 1),
+    stats: { playMinutes: u.playMinutes || 0, chestsOpened: u.chestsOpened || 0, friends: u.friends.length },
+    achievements: u.achievements || [],
     friendsLimit: limitFor(u), economy: { chests: ECONOMY.chests, proPriceUsd: ECONOMY.proPriceUsd, proFree: ECONOMY.proFree },
   };
 }
@@ -180,6 +208,7 @@ route('POST', '/api/chests/open', ({ user, body }) => {
     if (user.coins < price) throw httpError(402, `Не хватает монет: нужно ${price}`);
     user.coins -= price;
   }
+  user.chestsOpened = (user.chestsOpened || 0) + 1;
   save();
   return { paid: isPro(user) ? 0 : price, me: me(user) };
 });
@@ -411,6 +440,61 @@ route('POST', '/api/ai/modpack', async ({ body }) => {
   };
 });
 
+// ───────────── Время в игре и достижения ─────────────
+// Награды за достижения (монеты). Проверяемые сервером помечены check.
+const ACHIEVEMENTS = {
+  first_launch: { coins: 20 }, play_1h: { coins: 30, check: (u) => (u.playMinutes || 0) >= 60 },
+  play_10h: { coins: 100, check: (u) => (u.playMinutes || 0) >= 600 }, chest_10: { coins: 50, check: (u) => (u.chestsOpened || 0) >= 10 },
+  friend_1: { coins: 30, check: (u) => u.friends.length >= 1 }, friend_5: { coins: 60, check: (u) => u.friends.length >= 5 },
+  streak_7: { coins: 100, check: (u) => (u.streak || 0) >= 7 }, screenshot_1: { coins: 20 }, ai_mod_1: { coins: 50 },
+  ai_pack_1: { coins: 30 }, cape_1: { coins: 30 }, server_1: { coins: 20 }, call_1: { coins: 20 }, skin_1: { coins: 20 },
+};
+const PLAY_COINS_EVERY = 30; // минут игры за +10 монет
+
+route('POST', '/api/playtime', ({ user, body }) => {
+  // Не больше, чем реально прошло с прошлого отчёта (и не больше часа за раз)
+  const since = user.playReportedAt ? Math.ceil((now() - user.playReportedAt) / 60000) + 1 : 60;
+  const minutes = Math.max(0, Math.min(60, since, Math.round(Number(body.minutes) || 0)));
+  const before = Math.floor((user.playMinutes || 0) / PLAY_COINS_EVERY);
+  user.playMinutes = (user.playMinutes || 0) + minutes;
+  user.playReportedAt = now();
+  const earned = (Math.floor(user.playMinutes / PLAY_COINS_EVERY) - before) * 10;
+  user.coins += earned;
+  save();
+  return { added: minutes, earned, me: me(user) };
+});
+
+route('POST', '/api/achievement', ({ user, body }) => {
+  const a = ACHIEVEMENTS[body.id];
+  if (!a) throw httpError(400, 'Нет такого достижения');
+  user.achievements ||= [];
+  if (user.achievements.includes(body.id)) return { reward: 0, me: me(user) };
+  if (a.check && !a.check(user)) throw httpError(409, 'Достижение ещё не выполнено');
+  user.achievements.push(body.id);
+  user.coins += a.coins;
+  save();
+  return { reward: a.coins, me: me(user) };
+});
+
+// ───────────── Голосовые звонки: обмен сигналами WebRTC ─────────────
+// Сам голос идёт напрямую между игроками; сервер только передаёт «рукопожатие».
+const mailboxes = new Map(); // ник → [{ from, data, at }]
+route('POST', '/api/call/signal', ({ user, body }) => {
+  const to = db.users[lower(body.to)];
+  if (!to || !isFriend(user, to.nick)) throw httpError(403, 'Звонить можно только друзьям');
+  const data = body.data;
+  if (!data || JSON.stringify(data).length > 20000) throw httpError(400, 'Неверный сигнал');
+  const box = mailboxes.get(lower(to.nick)) || [];
+  box.push({ from: user.nick, data, at: now() });
+  mailboxes.set(lower(to.nick), box.filter((m) => now() - m.at < 60000).slice(-200));
+  return { ok: true };
+});
+route('GET', '/api/call/poll', ({ user }) => {
+  const box = (mailboxes.get(lower(user.nick)) || []).filter((m) => now() - m.at < 60000);
+  mailboxes.delete(lower(user.nick));
+  return { messages: box };
+});
+
 // Новости для сайта и лаунчера
 // Новости берутся из блока <script id="news"> страницы сайта — правите в одном месте
 route('GET', '/api/news', () => {
@@ -489,5 +573,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`Rionina server: http://localhost:${PORT}`));
+loadDb()
+  .then(() => server.listen(PORT, () => console.log(`Rionina server: http://localhost:${PORT}`)))
+  .catch((e) => { console.error('Не удалось открыть базу:', e.message); process.exit(1); });
 module.exports = { server, ECONOMY };

@@ -95,9 +95,17 @@
           <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2.5"/><path d="M8.5 6l1.5-2.5h4L15.5 6"/><circle cx="12" cy="13" r="3.5"/></svg>
           Скриншоты
         </button>
+        <button class="nav" data-tab="servers">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></svg>
+          Серверы
+        </button>
         <button class="nav" data-tab="friends">
           <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.6 0 4.4 1.4 5 4"/></svg>
           Друзья
+        </button>
+        <button class="nav" data-tab="profile">
+          <svg viewBox="0 0 24 24"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.4l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/><path d="M8 21h8"/></svg>
+          Профиль
         </button>
         <button class="nav" data-tab="pro">
           <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg>
@@ -125,6 +133,13 @@
     </aside>
 
     <main class="content">
+      <div class="call-bar hidden" id="callBar">
+        <span class="call-dot"></span>
+        <div class="ub-text"><strong id="callTitle"></strong><span class="muted small" id="callSub"></span></div>
+        <button class="btn btn-sm btn-call-ok hidden" id="callAccept">Принять</button>
+        <button class="btn btn-secondary btn-sm hidden" id="callMute">🎤 Вкл</button>
+        <button class="btn btn-sm btn-call-end" id="callEnd">Завершить</button>
+      </div>
       <div class="update-bar hidden" id="updateBar">
         <span class="ub-icon">⬆️</span>
         <div class="ub-text"><strong id="ubTitle">Обновите Rionina Launcher до новой версии</strong><span id="ubNotes" class="muted small"></span></div>
@@ -455,6 +470,30 @@
           <div class="shots-grid" id="shotsGrid"></div>
         </div>
       </div>
+
+      <!-- Серверы -->
+      <div class="tab hidden" id="tab-servers">
+        <header class="page-head drag"><h2>Серверы</h2><p class="muted">Любимые серверы с онлайном и пингом — «Играть» сразу подключает</p></header>
+        <div class="scroll">
+          <form class="card add-server" id="addServerForm">
+            <input class="field field-sm" id="srvName" placeholder="Название" maxlength="32" />
+            <input class="field field-sm" id="srvAddress" placeholder="Адрес: play.example.net" spellcheck="false" />
+            <button class="btn btn-primary btn-sm">＋ Добавить</button>
+          </form>
+          <div class="group" id="serverList"></div>
+          <p class="muted small">Лаунчер сам выберет версию игры, которая нужна серверу. Без лицензии Minecraft зайти можно только на серверы, которые это разрешают.</p>
+        </div>
+      </div>
+
+      <!-- Профиль -->
+      <div class="tab hidden" id="tab-profile">
+        <div class="scroll">
+          <div class="profile-hero" id="profileHero"></div>
+          <div class="stat-grid" id="profileStats"></div>
+          <h3 class="section-title">Достижения <span class="muted small" id="achCount"></span></h3>
+          <div class="ach-grid" id="achGrid"></div>
+        </div>
+      </div>
       <!-- Bedrock -->
       <div class="tab hidden" id="tab-bedrock">
         <header class="page-head drag"><h2>Bedrock Edition</h2><p class="muted">Minecraft для Windows, телефонов и консолей</p></header>
@@ -616,5 +655,7 @@
   <script src="themes.js"></script>
   <script src="friends.js"></script>
   <script src="extras.js"></script>
+  <script src="social.js"></script>
+  <script src="i18n.js"></script>
 </body>
 </html>

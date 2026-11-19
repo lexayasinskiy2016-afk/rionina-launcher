@@ -582,3 +582,56 @@ body.glassy .ai-card, body.glassy .ai-plan, body.glassy .pack-card, body.glassy 
 .recipe i { width: 28px; height: 28px; border-radius: 6px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); font: 700 9px/28px ui-monospace, monospace; text-align: center; font-style: normal; color: var(--muted); }
 .mini-items { display: flex; gap: 6px; }
 .mini-items img { width: 34px; height: 34px; background: var(--surface-2); border-radius: 8px; padding: 3px; }
+
+/* ───────── Звонки ───────── */
+.call-bar { position: absolute; top: 14px; left: 24px; right: 24px; z-index: 31; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-radius: 16px;
+  background: linear-gradient(135deg, #1f8f3a, #23a653); color: #fff; box-shadow: 0 12px 34px rgba(35, 166, 83, .35); animation: rise .3s; }
+.call-bar .muted { color: rgba(255,255,255,.85); }
+.call-dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .3; transform: scale(.7); } }
+.btn-call-ok { background: #fff; color: #1f8f3a; }
+.btn-call-end { background: #ff3b30; color: #fff; }
+.call-bar .btn-secondary { background: rgba(255,255,255,.2); color: #fff; }
+
+/* ───────── Серверы ───────── */
+.add-server { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.add-server input:first-child { width: 170px; }
+.add-server input:nth-child(2) { flex: 1; min-width: 200px; }
+.srv { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.srv:last-child { border-bottom: 0; }
+.srv.off { opacity: .55; }
+.srv-ico { width: 48px; height: 48px; border-radius: 10px; background: var(--surface-2); image-rendering: pixelated; flex-shrink: 0; }
+.srv-ico:not([src]) { visibility: visible; }
+.srv-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.srv-motd { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srv-state { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 110px; }
+.srv-ping { font-weight: 700; }
+.srv-ping.good { color: var(--green); } .srv-ping.mid { color: #ff9f0a; } .srv-ping.bad { color: var(--red); }
+
+/* ───────── Профиль ───────── */
+.profile-hero { display: flex; align-items: center; gap: 22px; margin-top: 30px; padding: 26px; border-radius: 26px; color: #fff;
+  background: radial-gradient(70% 140% at 0% 0%, rgba(255,255,255,.18), transparent 60%), linear-gradient(135deg, #23a653, #1f6fe0 60%, #7a2bd9); box-shadow: var(--shadow); }
+.p-head { width: 96px; height: 96px; border-radius: 20px; image-rendering: pixelated; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.p-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.p-info h2 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
+.p-info .muted { color: rgba(255,255,255,.8); }
+.p-level { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.p-bar { flex: 1; min-width: 160px; height: 10px; border-radius: 99px; background: rgba(255,255,255,.25); overflow: hidden; }
+.p-bar i { display: block; height: 100%; background: #fff; border-radius: 99px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }
+.stat { background: var(--surface); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; }
+.stat span { font-size: 22px; }
+.stat b { font-size: 20px; letter-spacing: -.01em; }
+.stat em { font-style: normal; font-size: 12.5px; color: var(--muted); }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.ach { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); opacity: .55; filter: grayscale(.8); }
+.ach.got { opacity: 1; filter: none; }
+.ach .ai { font-size: 26px; }
+.ach div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ach em { font-style: normal; font-size: 12.5px; color: var(--muted); }
+.ach .ar { font-weight: 700; font-size: 13px; color: var(--gold, #e7a70b); }
+.ach.got .ar { color: var(--green); }
+body.glassy .stat, body.glassy .ach, body.glassy .add-server { background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(24px); }
+
+/* Не заезжать под кнопки окна в Windows */
+body:not(.mac) .call-bar, body:not(.mac) .update-bar { right: 130px; }

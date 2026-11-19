@@ -416,6 +416,7 @@ async function wearSelected() {
   await saveSkinData();
   try {
     const res = await R.skin.apply(id);
+    unlock('skin_1');
     toast(res === 'uploaded' ? 'Скин надет и загружен в ваш профиль Minecraft — его видят все игроки' : 'Скин надет — вы увидите его в игре (офлайн, одиночная игра)');
   } catch (e) {
     toast(`Скин сохранён в лаунчере, но Mojang его не принял: ${e.message}`, 7000);

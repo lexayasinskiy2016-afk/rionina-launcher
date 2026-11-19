@@ -1,22 +1,16 @@
-# Сервер Rionina + сайт rioninalauncher.com на Render.com (Blueprint)
+# Сервер Rionina на Render.com — бесплатный тариф.
+# Данные хранятся в бесплатной базе Neon (DATABASE_URL), поэтому не пропадают при перезапусках.
 services:
   - type: web
     name: rionina
     runtime: node
+    plan: free
     rootDir: server
-    plan: starter
-    buildCommand: echo "Без зависимостей"
+    buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /api/health
     envVars:
-      - key: DATA_DIR
-        value: /var/data
-      # Прямая ссылка на RioninaLauncher.exe (например, из релиза GitHub)
-      - key: DOWNLOAD_URL
+      - key: DATABASE_URL     # строка подключения из Neon (postgres://…)
         sync: false
-    disk:
-      name: rionina-data
-      mountPath: /var/data
-      sizeGB: 1
-    domains:
-      - rioninalauncher.com
+      - key: GEMINI_API_KEY   # необязательно: нейросеть для ИИ-сборок на сервере
+        sync: false
