@@ -26,7 +26,8 @@ async function sha256(file) {
 }
 
 class Updater {
-  constructor({ repo, currentVersion, electronVersion, exePath, isPackaged }) {
+  constructor({ repo, currentVersion, electronVersion, exePath, isPackaged, updatesDir }) {
+    this.updatesDir = updatesDir;
     this.repo = repo;
     this.current = currentVersion;
     this.electron = electronVersion;
@@ -57,18 +58,27 @@ class Updater {
   async download(onProgress) {
     const L = this.latest;
     if (!L) throw new Error('Сначала проверьте обновления');
-    if (process.platform !== 'win32' || !this.packaged) throw new Error('Автообновление работает в Windows-версии лаунчера');
-    const tmp = path.join(os.tmpdir(), 'rionina-update');
-    await fsp.mkdir(tmp, { recursive: true });
+    if (!this.packaged) throw new Error('Автообновление работает в собранной версии лаунчера');
     const full = L.electron !== this.electron;
+    if (full && process.platform !== 'win32') throw new Error('Скачайте новую версию с сайта');
     const item = full ? L.zip : L.asar;
-    const file = path.join(tmp, full ? 'update.zip' : 'app-update.bin');
+    const dir = full ? path.join(os.tmpdir(), 'rionina-update') : this.updatesDir;
+    await fsp.mkdir(dir, { recursive: true });
+    // .asar Electron считает архивом — качаем под другим именем и переименовываем «настоящим» fs
+    const tmpFile = path.join(dir, full ? 'update.zip' : `${L.version}.download`);
     let done = 0;
-    await download(this.url(item.name, L.version), file, {
+    await download(this.url(item.name, L.version), tmpFile, {
       size: item.size,
       onBytes: (n) => { done += n; onProgress?.({ done, total: item.size }); },
     });
-    if ((await sha256(file)) !== item.sha256) throw new Error('Файл обновления повреждён — попробуйте ещё раз');
+    if ((await sha256(tmpFile)) !== item.sha256) throw new Error('Файл обновления повреждён — попробуйте ещё раз');
+    let file = tmpFile;
+    if (!full) {
+      const ofs = require('original-fs');
+      file = path.join(dir, `${L.version}.asar`);
+      try { ofs.rmSync(file, { force: true }); } catch { /* нет старого */ }
+      ofs.renameSync(tmpFile, file);
+    }
     this.ready = { full, file, version: L.version };
     return this.ready;
   }
@@ -102,10 +112,22 @@ class Updater {
     return lines.join('\n');
   }
 
-  /** Закрывает лаунчер, подменяет файлы и запускает новую версию. */
-  apply(quit) {
-    if (!this.ready) throw new Error('Обновление ещё не скачано');
-    // -EncodedCommand (UTF-16) — чтобы русские буквы в путях (C:\Users\Алексей\…) не ломались
+  /** Применяет обновление: лёгкое — перезапуск с новой версией, полное — замена файлов. */
+  apply(quit, relaunch) {
+    const r = this.ready;
+    if (!r) throw new Error('Обновление ещё не скачано');
+    if (!r.full) {
+      // Запоминаем новую версию — загрузчик возьмёт её при следующем запуске
+      const ofs = require('original-fs');
+      ofs.writeFileSync(path.join(this.updatesDir, 'current.json'), JSON.stringify({ version: r.version, file: r.file, electron: this.electron }));
+      // Старые скачанные версии больше не нужны
+      for (const f of ofs.readdirSync(this.updatesDir)) {
+        if (f.endsWith('.asar') && path.join(this.updatesDir, f) !== r.file) { try { ofs.rmSync(path.join(this.updatesDir, f), { force: true }); } catch { /* занят */ } }
+      }
+      relaunch();
+      return;
+    }
+    // Полное обновление (сменился Electron): заменить файлы программы после закрытия
     const encoded = Buffer.from(this.script(), 'utf16le').toString('base64');
     spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded],
       { detached: true, stdio: 'ignore', windowsHide: true }).unref();
