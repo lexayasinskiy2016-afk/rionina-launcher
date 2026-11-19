@@ -14,7 +14,7 @@ const THEMES = [
   { re: /маги|волшеб|заклин|magic|spell/i, label: 'Магия', category: 'magic' },
   { re: /дракон|dragon/i, label: 'Драконы', queries: ['dragons'] },
   { re: /карт|minimap|map|навигац/i, label: 'Карта', slugs: ['xaeros-minimap', 'xaeros-world-map'] },
-  { re: /покемон|pokemon|cobblemon/i, label: 'Покемоны', slugs: ['cobblemon'] },
+  { re: /п[оа]к[еиэ]м[оа]н|pok[eé]mon|cobblemon|коблемон|кобблемон|пикачу|pikachu/i, label: 'Покемоны', slugs: ['cobblemon'] },
   { re: /ед[аыу]|ферм|кулинар|готов|farm|food|cook/i, label: 'Еда и фермы', slugs: ['farmers-delight'], category: 'food' },
   { re: /стро|декор|мебел|дом|build|decor|furniture/i, label: 'Строительство и декор', category: 'decoration' },
   { re: /выжив|survival|хардкор|hardcore/i, label: 'Выживание', slugs: ['appleskin', 'waystones'] },
@@ -62,6 +62,36 @@ async function searchTop({ query = '', category, gameVersion, loader, limit = 3 
     .map((h) => ({ id: h.project_id, slug: h.slug, title: h.title, icon: h.icon_url, description: h.description }));
 }
 
+const vNum = (v) => v.split('.').map((x) => x.padStart(4, '0')).join('.');
+const releaseOnly = (vs) => vs.filter((v) => /^\d+(\.\d+)+$/.test(v)).sort((a, b) => (vNum(a) < vNum(b) ? -1 : 1));
+
+/** Самая новая версия, где есть нужные моды темы. */
+function suggestVersion(missing) {
+  const vs = releaseOnly(missing.flatMap((m) => m.versions));
+  return vs.length ? vs[vs.length - 1] : null;
+}
+
+/** Понятное объяснение, почему пусто, с подсказкой, на какой версии моды есть. */
+async function emptyReason(prompt, { gameVersion, loader, missing }) {
+  const L = loader === 'fabric' ? 'Fabric' : loader === 'forge' ? 'Forge' : 'NeoForge';
+  if (missing.length) {
+    const m = missing[0];
+    const vs = releaseOnly(m.versions).slice(-3);
+    return `Мод «${m.title}» пока не вышел для Minecraft ${gameVersion}. Он есть для: ${vs.join(', ')} — выберите одну из этих версий.`;
+  }
+  // Ищем без версии: может, моды есть, но для других версий
+  try {
+    const words = prompt.replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter((w) => w.length > 2).slice(0, 3).join(' ');
+    const [hit] = await searchTop({ query: words, loader, limit: 1 });
+    if (hit) {
+      const info = await projectInfo(hit.slug);
+      const vs = releaseOnly(info?.versions || []).slice(-3);
+      if (vs.length && !vs.includes(gameVersion)) return `Для Minecraft ${gameVersion} ничего не нашлось. Похожий мод «${hit.title}» есть для версий ${vs.join(', ')} — попробуйте одну из них.`;
+    }
+  } catch { /* без подсказки */ }
+  return `Не нашлось модов для ${L} ${gameVersion} под это описание. Попробуйте другие слова (лучше по-английски, например «pokemon») или другую версию.`;
+}
+
 /**
  * Строит план сборки. ai — ответ нейросети сервера ({ name, description, queries }) или null.
  * Возвращает { ok, reason?, name, description, themes, mods: [{ id, slug, title, icon, description, why }] }
@@ -76,6 +106,7 @@ async function plan({ prompt, gameVersion, loader }, ai = null) {
   const mods = new Map();
   const add = (m, why) => { if (m && !mods.has(m.id) && mods.size < 40) mods.set(m.id, { ...m, why }); };
   const themes = [];
+  const missing = []; // моды темы, которых нет для выбранной версии: { title, versions }
 
   for (const slug of BASE[loader] || []) add(await projectInfo(slug), 'Нужен для работы модов');
 
@@ -90,6 +121,7 @@ async function plan({ prompt, gameVersion, loader }, ai = null) {
       for (const slug of slugs || []) {
         const info = await projectInfo(slug);
         if (info && info.loaders.includes(loader) && (!gameVersion || info.versions.includes(gameVersion))) add(info, t.label);
+        else if (info && info.loaders.includes(loader)) missing.push({ title: info.title, versions: info.versions });
       }
       for (const q of t.queries || []) for (const m of await searchTop({ query: q, gameVersion, loader, limit: 2 }).catch(() => [])) add(m, t.label);
       if (t.category) for (const m of await searchTop({ category: t.category, gameVersion, loader, limit: 3 }).catch(() => [])) add(m, t.label);
@@ -107,7 +139,7 @@ async function plan({ prompt, gameVersion, loader }, ai = null) {
   const check = moderate(list.map((m) => `${m.title} ${m.slug}`).join(' '));
   const clean = check.ok ? list : list.filter((m) => moderate(`${m.title} ${m.slug}`).ok);
   if (clean.filter((m) => !(BASE[loader] || []).includes(m.slug)).length === 0) {
-    return { ok: false, reason: 'Не нашлось модов под это описание и версию — попробуйте другие слова или версию' };
+    return { ok: false, empty: true, reason: await emptyReason(prompt, { gameVersion, loader, missing }), suggest: suggestVersion(missing) };
   }
   const name = ai?.name || `Rionina: ${themes.slice(0, 2).join(' + ')}`;
   const description = ai?.description || `Сборка на ${loader === 'fabric' ? 'Fabric' : loader === 'forge' ? 'Forge' : 'NeoForge'} ${gameVersion}: ${themes.join(', ').toLowerCase()}.`;

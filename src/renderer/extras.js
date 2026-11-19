@@ -179,6 +179,13 @@ function renderPlan() {
   const p = ai.plan;
   const box = $('#aiResult');
   if (!p) { box.innerHTML = ''; return; }
+  if (!p.ok && p.empty) {
+    const canSwitch = p.suggest && [...$('#aiVersion').options].some((o) => o.value === p.suggest);
+    box.innerHTML = `<div class="ai-plan rejected"><div class="verdict warn">🔍 Ничего не нашлось</div><p>${esc(p.reason)}</p>
+      ${canSwitch ? `<button class="btn btn-primary btn-sm" id="aiTryVersion">Собрать для Minecraft ${esc(p.suggest)}</button>` : ''}</div>`;
+    $('#aiTryVersion')?.addEventListener('click', () => { $('#aiVersion').value = p.suggest; $('#btnAiPlan').click(); });
+    return;
+  }
   if (!p.ok) {
     box.innerHTML = `<div class="ai-plan rejected"><div class="verdict bad">⛔ Модерация: нельзя</div><p>${esc(p.reason)}</p></div>`;
     return;
