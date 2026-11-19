@@ -24,7 +24,7 @@ function showWhatsNew(info) {
     <h2>Обновите Rionina Launcher</h2>
     ${notes[0] ? `<p class="wn-lead">${esc(notes[0])}</p>` : ''}
     ${notes.length > 1 ? `<h4>Что добавили</h4><ul>${notes.slice(1).map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-    ${info.mandatory ? '<p class="wn-must">⚠️ Это обязательное обновление — без него играть нельзя.</p>' : ''}
+    ${info.mandatory ? '<p class="wn-must">⚠️ Это обязательное обновление — без него играть нельзя.</p>' : '<p class="wn-soft">👍 Можно играть и без обновления, но лучше обновить — это займёт пару секунд.</p>'}
     <div class="row-gap">
       <button class="btn btn-primary" id="wnUpdate">Обновить сейчас</button>
       ${info.mandatory ? '' : '<button class="btn btn-secondary" id="wnLater">Позже</button>'}

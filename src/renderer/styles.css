@@ -646,3 +646,5 @@ body:not(.mac) .call-bar, body:not(.mac) .update-bar { right: 130px; }
 .wn-must { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #ff9f0a 16%, transparent); font-weight: 600; font-size: 14px; }
 .wn-card .row-gap { margin-top: 18px; }
 .btn-play.locked { background: linear-gradient(180deg, #8e8e93, #6e6e73); box-shadow: none; }
+
+.wn-soft { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--green) 14%, transparent); font-weight: 600; font-size: 14px; }

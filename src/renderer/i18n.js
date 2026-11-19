@@ -157,7 +157,7 @@ const EN = {
   'Обновите Rionina Launcher до новой версии': 'Update Rionina Launcher to the new version', 'Обновить': 'Update', 'Скачивание…': 'Downloading…', 'Перезапустить': 'Restart',
   'Язык': 'Language', 'Русский и English': 'Russian and English',
   'Обновите Rionina Launcher': 'Update Rionina Launcher', 'Что добавили': "What's new", 'Обновить сейчас': 'Update now',
-  '⚠️ Это обязательное обновление — без него играть нельзя.': '⚠️ This update is required — you cannot play without it.', 'Сначала обновите': 'Update first',
+  '⚠️ Это обязательное обновление — без него играть нельзя.': '⚠️ This update is required — you cannot play without it.', 'Сначала обновите': 'Update first', '👍 Можно играть и без обновления, но лучше обновить — это займёт пару секунд.': '👍 You can play without updating, but updating is better — it takes a couple of seconds.', 'Позже': 'Later',
 };
 
 // Фразы с числами и именами
