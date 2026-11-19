@@ -43,8 +43,8 @@ const NEGATIVE = new Set(['slowness', 'weakness', 'poison', 'wither', 'glowing',
 
 const clamp = (v, lo, hi, d) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
 const slug = (s, d = 'item') => (String(s || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32) || d);
-const RUDE = /(?<![\p{L}\p{N}])(бля\p{L}*|сук[аи]|хуй\p{L}*|хуе\p{L}*|пизд\p{L}*|еба\p{L}*|fuck\p{L}*|shit)(?![\p{L}\p{N}])/giu;
-const cleanText = (s, max) => String(s || '').replace(RUDE, (w) => '*'.repeat(w.length)).replace(/[\u0000-\u001f]/g, '').trim().slice(0, max);
+const { censor } = require('./profanity');
+const cleanText = (s, max) => censor(String(s || '')).replace(/[\u0000-\u001f]/g, '').trim().slice(0, max);
 const itemId = (s) => {
   const id = String(s || '').replace(/^minecraft:/, '').toLowerCase();
   return /^[a-z0-9_]{2,40}$/.test(id) ? `minecraft:${id}` : null;

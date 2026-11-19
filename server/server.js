@@ -354,10 +354,9 @@ const BLOCKED = [
   W('cheats?|hacks?|hacked|читы|чит|читер|читов|взлом'), W('wurst|meteor client|impact client|aristois'),
   W('nsfw|porn\\w*|порн\\w*|sex|секс\\w*'), /18\+/,
 ];
-const RUDE_SRC = 'бля\\p{L}*|сук[аи]|хуй\\p{L}*|хуе\\p{L}*|пизд\\p{L}*|еба\\p{L}*|ёба\\p{L}*|fuck\\p{L}*|shit';
-const RUDE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${RUDE_SRC})(?![\\p{L}\\p{N}])`, 'giu');
-const isRude = (t) => new RegExp(RUDE.source, 'iu').test(t);
-function moderateText(t) { return t.replace(RUDE, (w) => '*'.repeat(w.length)); }
+const { censor, hasProfanity } = require('./profanity');
+const isRude = (t) => hasProfanity(t);
+function moderateText(t) { return censor(t); }
 function moderatePack(p) {
   const text = [p.name, p.description, ...(p.mods || []).map((m) => `${m.title} ${m.slug || ''}`)].join(' ');
   const bad = BLOCKED.find((re) => re.test(text));
