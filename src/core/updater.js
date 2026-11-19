@@ -74,32 +74,41 @@ class Updater {
   }
 
   /** Закрывает лаунчер, подменяет файлы и запускает новую версию. */
-  apply(quit) {
+  /** Сценарий PowerShell, который подменяет файлы после закрытия лаунчера. */
+  script() {
     const r = this.ready;
-    if (!r) throw new Error('Обновление ещё не скачано');
+    const q = (p) => `'${String(p).replace(/'/g, "''")}'`; // путь в одинарных кавычках PowerShell
     const appDir = path.dirname(this.exe);
-    const res = path.join(appDir, 'resources');
-    const tmp = path.dirname(r.file);
-    const pid = process.pid;
+    const asar = path.join(appDir, 'resources', 'app.asar');
+    const unpacked = path.join(path.dirname(r.file), 'unpacked');
+    const log = path.join(os.tmpdir(), 'rionina-update.log');
+    // Повторяем попытки: Windows может ещё секунду держать файлы закрывшегося лаунчера
+    const retry = (cmd) => `$ok=$false; for($i=0; $i -lt 30 -and -not $ok; $i++){ try { ${cmd}; $ok=$true } catch { Start-Sleep -Milliseconds 500 } }`;
     const lines = [
-      '@echo off',
-      'chcp 65001 >nul',
-      ':wait',
-      `tasklist /FI "PID eq ${pid}" 2>nul | find "${pid}" >nul && (timeout /t 1 /nobreak >nul & goto wait)`,
+      `Start-Transcript -LiteralPath ${q(log)} -Force | Out-Null`,
+      `Wait-Process -Id ${process.pid} -Timeout 60 -ErrorAction SilentlyContinue`,
+      'Start-Sleep -Milliseconds 800',
     ];
     if (r.full) {
       lines.push(
-        `powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '${r.file}' -DestinationPath '${path.join(tmp, 'unpacked')}' -Force"`,
-        `robocopy "${path.join(tmp, 'unpacked', 'Rionina Launcher')}" "${appDir}" /E /NFL /NDL /NJH /NJS /NP >nul`,
-        `rmdir /S /Q "${path.join(tmp, 'unpacked')}"`,
+        `Expand-Archive -LiteralPath ${q(r.file)} -DestinationPath ${q(unpacked)} -Force`,
+        retry(`Copy-Item -Path (Join-Path ${q(unpacked)} 'Rionina Launcher\\*') -Destination ${q(appDir)} -Recurse -Force -ErrorAction Stop`),
+        `Remove-Item -LiteralPath ${q(unpacked)} -Recurse -Force -ErrorAction SilentlyContinue`,
       );
     } else {
-      lines.push(`move /Y "${r.file}" "${path.join(res, 'app.asar')}" >nul`);
+      lines.push(retry(`Move-Item -LiteralPath ${q(r.file)} -Destination ${q(asar)} -Force -ErrorAction Stop`));
     }
-    lines.push(`start "" "${this.exe}"`, 'exit');
-    const script = path.join(tmp, 'apply-update.cmd');
-    fs.writeFileSync(script, lines.join('\r\n'));
-    spawn('cmd.exe', ['/c', script], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    lines.push(`Start-Process -FilePath ${q(this.exe)}`, 'Stop-Transcript | Out-Null');
+    return lines.join('\n');
+  }
+
+  /** Закрывает лаунчер, подменяет файлы и запускает новую версию. */
+  apply(quit) {
+    if (!this.ready) throw new Error('Обновление ещё не скачано');
+    // -EncodedCommand (UTF-16) — чтобы русские буквы в путях (C:\Users\Алексей\…) не ломались
+    const encoded = Buffer.from(this.script(), 'utf16le').toString('base64');
+    spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded],
+      { detached: true, stdio: 'ignore', windowsHide: true }).unref();
     quit();
   }
 }
