@@ -1,7 +1,7 @@
 {
   "name": "rionina-launcher",
   "productName": "Rionina Launcher",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "Rionina Launcher — Minecraft Java & Bedrock launcher in Apple style",
   "main": "src/main.js",
   "author": "Rionina",
