@@ -157,13 +157,14 @@ const EN = {
   'Обновите Rionina Launcher до новой версии': 'Update Rionina Launcher to the new version', 'Обновить': 'Update', 'Скачивание…': 'Downloading…', 'Перезапустить': 'Restart',
   'Язык': 'Language', 'Русский и English': 'Russian and English',
   'Обновите Rionina Launcher': 'Update Rionina Launcher', 'Что добавили': "What's new", 'Обновить сейчас': 'Update now',
-  '⚠️ Это обязательное обновление — без него играть нельзя.': '⚠️ This update is required — you cannot play without it.', 'Сначала обновите': 'Update first', '👍 Можно играть и без обновления, но лучше обновить — это займёт пару секунд.': '👍 You can play without updating, but updating is better — it takes a couple of seconds.', 'Позже': 'Later',
+  '⚠️ Это обязательное обновление — без него играть нельзя.': '⚠️ This update is required — you cannot play without it.', 'Сначала обновите': 'Update first', 'Осталось перезапустить': 'Just restart', 'Лаунчер закроется и через пару секунд откроется уже новой версией.': 'The launcher will close and reopen with the new version in a couple of seconds.', '👍 Можно играть и без обновления, но лучше обновить — это займёт пару секунд.': '👍 You can play without updating, but updating is better — it takes a couple of seconds.', 'Позже': 'Later',
 };
 
 // Фразы с числами и именами
 const EN_PATTERNS = [
   [/^Обновите Rionina Launcher до версии (.+)$/, 'Update Rionina Launcher to version $1'],
   [/^Новая версия (.+)$/, 'New version $1'],
+  [/^Версия (.+) скачана$/, 'Version $1 downloaded'],
   [/^Версия (.+) готова — перезапустите лаунчер$/, 'Version $1 is ready — restart the launcher'],
   [/^Minecraft (.+) \(будет установлена\)$/, 'Minecraft $1 (will be installed)'],
   [/^Уровень (\d+)$/, 'Level $1'], [/^ещё (\d+) опыта до (\d+)$/, '$1 more XP to level $2'],

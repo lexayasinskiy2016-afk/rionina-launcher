@@ -61,6 +61,7 @@ $('#ubBtn').addEventListener('click', async () => {
     b.disabled = false;
     b.textContent = 'Перезапустить';
     $('#ubTitle').textContent = `Версия ${upd.info.version} готова — перезапустите лаунчер`;
+    showRestartDialog();
   } catch (e) {
     b.disabled = false;
     b.textContent = 'Скачать с сайта';
@@ -604,4 +605,16 @@ async function loadMyMods() {
     });
     box.appendChild(el);
   }
+}
+
+// Большое окно «Готово — перезапустить» посередине экрана
+function showRestartDialog() {
+  const box = $('#whatsNew');
+  box.querySelector('.wn-card').innerHTML = `
+    <div class="wn-badge">Версия ${esc(upd.info.version)} скачана</div>
+    <h2>Осталось перезапустить</h2>
+    <p class="wn-lead">Лаунчер закроется и через пару секунд откроется уже новой версией.</p>
+    <div class="row-gap"><button class="btn btn-primary" id="wnRestart">Перезапустить</button></div>`;
+  box.classList.remove('hidden');
+  $('#wnRestart').addEventListener('click', () => R.update.apply());
 }
