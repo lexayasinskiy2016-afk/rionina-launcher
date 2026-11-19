@@ -305,6 +305,8 @@ route('POST', '/api/presence', ({ user, body }) => {
       loader: body.shared.loader === 'fabric' ? 'fabric' : null,
       mods: Array.isArray(body.shared.mods) ? body.shared.mods.filter((m) => /^[A-Za-z0-9]{8}$/.test(m)).slice(0, 200) : [],
       world: String(body.shared.world || '').slice(0, 40),
+      audience: ['friends', 'clan', 'all'].includes(body.shared.audience) ? body.shared.audience : 'friends',
+      mode: body.shared.mode === 'dungeon' ? 'dungeon' : 'normal',
     }
     : null;
   user.presence = {
@@ -565,9 +567,25 @@ const CLAN_EMOJI = ['🐉', '⚔️', '🛡️', '🔥', '❄️', '⚡', '🌙'
 const CLAN_COLORS = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#00c7be', '#0a84ff', '#5856d6', '#af52de', '#ff2d55', '#8e8e93'];
 const TAG_RE = /^[A-Za-zА-Яа-яЁё0-9]{2,5}$/;
 
+function clanWorlds(c, audience) {
+  const out = [];
+  for (const n of c.members) {
+    const u = db.users[lower(n)];
+    const p = u?.presence;
+    if (!p?.shared?.address || now() - p.at >= ONLINE_MS || !audience.includes(p.shared.audience)) continue;
+    out.push({ host: u.nick, gameVersion: p.shared.gameVersion, audience: p.shared.audience, mode: p.shared.mode || 'normal' });
+  }
+  return out;
+}
+
 function clanPublic(c, withMembers) {
-  const out = { tag: c.tag, name: c.name, emoji: c.emoji, color: c.color, owner: c.owner, members: c.members.length, max: CLAN_MAX, created: c.created };
+  const out = {
+    tag: c.tag, name: c.name, emoji: c.emoji, color: c.color, owner: c.owner, members: c.members.length, max: CLAN_MAX, created: c.created,
+    open: !!c.open, worlds: clanWorlds(c, ['all']),
+  };
   if (withMembers) {
+    out.worlds = clanWorlds(c, ['clan', 'all']);
+    out.requests = (c.requests || []).map((r) => ({ nick: r.nick, text: r.text, at: r.at }));
     out.list = c.members.map((n) => {
       const u = db.users[lower(n)];
       const online = !!u?.presence && now() - u.presence.at < ONLINE_MS;
@@ -578,10 +596,16 @@ function clanPublic(c, withMembers) {
 }
 const myClan = (u) => (u.clan ? db.clans[lower(u.clan)] : null);
 
-route('GET', '/api/clans', () => ({
-  clans: Object.values(db.clans).sort((a, b) => b.members.length - a.members.length).slice(0, 50).map((c) => clanPublic(c, false)),
-  price: CLAN_PRICE, emoji: CLAN_EMOJI, colors: CLAN_COLORS,
-}));
+route('GET', '/api/clans', ({ user }) => {
+  const notice = user.clanNotice || null;
+  if (notice) { delete user.clanNotice; save(); }
+  return {
+    clans: Object.values(db.clans).sort((a, b) => b.members.length - a.members.length).slice(0, 50).map((c) => clanPublic(c, false)),
+    price: CLAN_PRICE, emoji: CLAN_EMOJI, colors: CLAN_COLORS,
+    applied: user.clanApply && db.clans[lower(user.clanApply)] ? db.clans[lower(user.clanApply)].tag : null,
+    notice,
+  };
+});
 route('GET', '/api/clan', ({ user }) => {
   const c = myClan(user);
   return c ? clanPublic(c, true) : null;
@@ -592,30 +616,106 @@ route('POST', '/api/clan/create', ({ user, body }) => {
   const name = String(body.name || '').trim().slice(0, 24);
   if (!TAG_RE.test(tag)) throw httpError(400, 'Тег клана: 2–5 букв или цифр');
   if (name.length < 3) throw httpError(400, 'Название клана — минимум 3 символа');
-  if (isRude(`${tag} ${name}`) || BLOCKED.some((re) => re.test(`${tag} ${name}`))) throw httpError(400, 'Название не прошло модерацию');
+  if (clanRude(`${tag} ${name}`)) throw httpError(400, 'Название не прошло модерацию');
   if (db.clans[lower(tag)]) throw httpError(409, 'Такой тег уже занят');
   if (user.coins < CLAN_PRICE) throw httpError(402, `Создание клана стоит ${CLAN_PRICE} монет`);
   user.coins -= CLAN_PRICE;
   const clan = {
-    tag, name, owner: user.nick, members: [user.nick], created: now(), chat: [],
+    tag, name, owner: user.nick, members: [user.nick], created: now(), chat: [], requests: [], open: !!body.open,
     emoji: CLAN_EMOJI.includes(body.emoji) ? body.emoji : '⚔️', color: CLAN_COLORS.includes(body.color) ? body.color : '#0a84ff',
   };
   db.clans[lower(tag)] = clan;
   user.clan = tag;
+  delete user.clanApply;
   save();
   return { clan: clanPublic(clan, true), me: me(user) };
 });
+function addMember(c, u) {
+  if (c.members.length >= CLAN_MAX) throw httpError(403, 'В клане нет мест');
+  c.members.push(u.nick);
+  u.clan = c.tag;
+  delete u.clanApply;
+  for (const other of Object.values(db.clans)) other.requests = (other.requests || []).filter((r) => lower(r.nick) !== lower(u.nick));
+  c.chat.push({ from: '★', text: `${u.nick} вступил в клан`, at: now() });
+}
+const clanRude = (t) => isRude(t) || BLOCKED.some((re) => re.test(t));
+
+// Вступление: в открытый клан — сразу, в закрытый — заявкой главе
 route('POST', '/api/clan/join', ({ user, body }) => {
   if (myClan(user)) throw httpError(409, 'Вы уже в клане — сначала выйдите из него');
   const c = db.clans[lower(body.tag)];
   if (!c) throw httpError(404, 'Клан не найден');
-  if (c.members.length >= CLAN_MAX) throw httpError(403, 'В клане нет мест');
-  c.members.push(user.nick);
-  user.clan = c.tag;
-  c.chat.push({ from: '★', text: `${user.nick} вступил в клан`, at: now() });
+  if (c.open) {
+    addMember(c, user);
+    save();
+    return { joined: true, clan: clanPublic(c, true) };
+  }
+  const text = String(body.text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (text && clanRude(text)) throw httpError(400, 'Сообщение не прошло модерацию — без матов и оскорблений');
+  c.requests = (c.requests || []).filter((r) => lower(r.nick) !== lower(user.nick));
+  if (c.requests.length >= 30) throw httpError(429, 'У клана слишком много заявок — попробуйте позже');
+  if (user.clanApply && db.clans[lower(user.clanApply)]) {
+    const prev = db.clans[lower(user.clanApply)];
+    prev.requests = (prev.requests || []).filter((r) => lower(r.nick) !== lower(user.nick));
+  }
+  c.requests.push({ nick: user.nick, text, at: now() });
+  user.clanApply = c.tag;
+  save();
+  return { joined: false, applied: c.tag };
+});
+route('POST', '/api/clan/apply/cancel', ({ user }) => {
+  const c = user.clanApply && db.clans[lower(user.clanApply)];
+  if (c) c.requests = (c.requests || []).filter((r) => lower(r.nick) !== lower(user.nick));
+  delete user.clanApply;
+  save();
+  return { ok: true };
+});
+route('POST', '/api/clan/answer', ({ user, body }) => {
+  const c = myClan(user);
+  if (!c || lower(c.owner) !== lower(user.nick)) throw httpError(403, 'Заявки принимает только глава клана');
+  const req = (c.requests || []).find((r) => lower(r.nick) === lower(body.nick));
+  if (!req) throw httpError(404, 'Заявка не найдена');
+  c.requests = c.requests.filter((r) => r !== req);
+  const target = db.users[lower(req.nick)];
+  if (target && body.accept && !myClan(target)) {
+    addMember(c, target);
+    target.clanNotice = { ok: true, text: `Вас приняли в клан [${c.tag}] ${c.name}! 🎉` };
+  } else if (target) {
+    if (lower(target.clanApply || '') === lower(c.tag)) delete target.clanApply;
+    target.clanNotice = { ok: false, text: `Клан [${c.tag}] отклонил вашу заявку` };
+  }
   save();
   return clanPublic(c, true);
 });
+route('POST', '/api/clan/settings', ({ user, body }) => {
+  const c = myClan(user);
+  if (!c || lower(c.owner) !== lower(user.nick)) throw httpError(403, 'Настройки меняет только глава клана');
+  if (typeof body.open === 'boolean') c.open = body.open;
+  if (body.name !== undefined) {
+    const name = String(body.name).trim().slice(0, 24);
+    if (name.length < 3) throw httpError(400, 'Название клана — минимум 3 символа');
+    if (clanRude(name)) throw httpError(400, 'Название не прошло модерацию');
+    c.name = name;
+  }
+  if (CLAN_EMOJI.includes(body.emoji)) c.emoji = body.emoji;
+  if (CLAN_COLORS.includes(body.color)) c.color = body.color;
+  save();
+  return clanPublic(c, true);
+});
+// Мир клана: адрес выдаётся участникам клана, а миру «для всех» — любому игроку
+route('GET', '/api/clan/world', ({ req, user }) => {
+  const q = new URL(req.url, 'http://x').searchParams;
+  const c = db.clans[lower(q.get('tag') || '')];
+  if (!c) throw httpError(404, 'Клан не найден');
+  const member = c.members.some((n) => lower(n) === lower(user.nick));
+  const host = db.users[lower(q.get('host') || '')];
+  const p = host?.presence;
+  const ok = host && c.members.some((n) => lower(n) === lower(host.nick)) && p?.shared?.address && now() - p.at < ONLINE_MS
+    && (p.shared.audience === 'all' || (member && p.shared.audience === 'clan'));
+  if (!ok) throw httpError(404, 'Этот мир уже закрыт');
+  return p.shared;
+});
+
 route('POST', '/api/clan/leave', ({ user }) => {
   const c = myClan(user);
   if (!c) return { ok: true };

@@ -360,6 +360,12 @@
             <div class="host-card" id="hostCard">
               <h3>🌍 Играть с друзьями</h3>
               <p class="muted small">Лаунчер подготовит игру, а вы откройте мир: <b>Esc → «Открыть для сети»</b>. Друзья увидят кнопку «Зайти».</p>
+              <div class="host-opts">
+                <div class="segmented" id="hostAudience">
+                  <button class="active" data-v="friends">Друзья</button><button data-v="clan">Клан</button><button data-v="all">Все</button>
+                </div>
+                <label class="host-check"><input type="checkbox" id="hostDungeon" /> 🗡️ Данжи</label>
+              </div>
               <div class="row-gap">
                 <select class="select select-sm" id="hostVersion"></select>
                 <button class="btn btn-primary btn-sm" id="btnHost">Разрешить для друзей</button>

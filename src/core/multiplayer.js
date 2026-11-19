@@ -11,6 +11,8 @@ const MODS = {
 // Pro: моды на производительность (больше FPS, быстрее загрузка, меньше памяти)
 const PERF_MODS = { sodium: 'AANobbMI', lithium: 'gvQqBUqZ', ferritecore: 'uXXizFIs', immediatelyfast: '5ZwdcRci', modernfix: 'nmDcB62a' };
 const SERVICE_MODS = new Set(Object.values(MODS));
+// Режим «Данж»: моды на подземелья (ставятся у хоста, друзья получают их автоматически)
+const DUNGEON_MODS = { dungeonsTaverns: 'tpehi7ww', betterDungeons: 'o1C1Dkj5', dungeonsArise: '8DfbfASn' };
 
 // Выданный адрес вида word-word.us.e4mc.link (служебные broker./ingress. — одно слово, их пропускаем)
 const E4MC_RE = /\b([a-z0-9-]+\.[a-z0-9-]+(?:\.[a-z0-9-]+)*\.e4mc\.link)\b/i;
@@ -43,11 +45,18 @@ async function installMods(mc, versionId, gameVersion, ids, { optional = false }
 }
 
 /** Готовит сборку для хоста: Fabric + Fabric API + e4mc + OfflineLAN. */
-async function prepareHost(mc, gameVersion, { pro } = {}, onProgress) {
+async function prepareHost(mc, gameVersion, { pro, dungeon } = {}, onProgress) {
   const versionId = await ensureFabricBuild(mc, gameVersion, onProgress);
   onProgress?.({ stage: 'Ставим моды для игры с друзьями', done: 0, total: 1 });
   await installMods(mc, versionId, gameVersion, [MODS.fabricApi, MODS.e4mc]);
   await installMods(mc, versionId, gameVersion, [MODS.offlineLan], { optional: true });
+  if (dungeon) {
+    onProgress?.({ stage: 'Ставим данжи', done: 0, total: 1 });
+    const got = await installMods(mc, versionId, gameVersion, Object.values(DUNGEON_MODS), { optional: true });
+    const gameDir = await mc.gameDir(versionId);
+    const have = await Promise.all(Object.values(DUNGEON_MODS).map((id) => modrinth.hasProject(path.join(gameDir, 'mods'), id)));
+    if (!got.length && !have.some(Boolean)) throw new Error(`Для Minecraft ${gameVersion} данжей пока нет — выберите другую версию`);
+  }
   if (pro) await installMods(mc, versionId, gameVersion, Object.values(PERF_MODS), { optional: true });
   return versionId;
 }
@@ -84,4 +93,4 @@ function findAddress(line) {
   return m ? m[1].toLowerCase() : null;
 }
 
-module.exports = { prepareHost, prepareJoin, modList, boostBuild, findAddress, ensureFabricBuild, PERF_MODS, MODS };
+module.exports = { DUNGEON_MODS, prepareHost, prepareJoin, modList, boostBuild, findAddress, ensureFabricBuild, PERF_MODS, MODS };

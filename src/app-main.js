@@ -425,7 +425,7 @@ let crashLog = [];
 let stoppedByUser = false;
 let lastCrash = null; // { versionId, gameVersion, mods, address }
 
-async function launchGame(id, { join = null, host = false } = {}) {
+async function launchGame(id, { join = null, host = false, audience = 'friends', mode = 'normal' } = {}) {
   requireUpToDate();
   if (game) throw new Error('Игра уже запущена');
   const acc = active();
@@ -448,7 +448,7 @@ async function launchGame(id, { join = null, host = false } = {}) {
   else await packs.removeSkinPack(gameDir).catch(() => {});
 
   const installed = (await mc.listInstalled()).find((v) => v.id === id);
-  if (host) hosting = { versionId: id, gameVersion: installed?.gameVersion || id, loader: installed?.loader || null, mods: await mp.modList(mc, id).catch(() => []), address: null };
+  if (host) hosting = { versionId: id, gameVersion: installed?.gameVersion || id, loader: installed?.loader || null, mods: await mp.modList(mc, id).catch(() => []), address: null, audience, mode };
 
   crashLog = [];
   send('game:state', { state: 'starting', id });
@@ -561,14 +561,17 @@ handle('friends:request', (nick) => friendsCall('POST', '/friends/request', { ni
 handle('friends:accept', (nick) => friendsCall('POST', '/friends/accept', { nick }));
 handle('friends:decline', (nick) => friendsCall('POST', '/friends/decline', { nick }));
 handle('friends:remove', (nick) => friendsCall('POST', '/friends/remove', { nick }));
-handle('friends:hostState', () => (hosting ? { address: hosting.address, gameVersion: hosting.gameVersion } : null));
+handle('friends:hostState', () => (hosting ? { address: hosting.address, gameVersion: hosting.gameVersion, audience: hosting.audience, mode: hosting.mode } : null));
 
 // Открыть свой мир для друзей
-handle('friends:host', async (gameVersion) => {
+// opts: { audience: 'friends' | 'clan' | 'all', dungeon: boolean }
+handle('friends:host', async (gameVersion, opts = {}) => {
   const acc = needAcc();
-  const versionId = await mp.prepareHost(mc, gameVersion, { pro: isPro(acc) }, (p) => send('install:progress', { id: gameVersion, ...p }));
+  const audience = ['friends', 'clan', 'all'].includes(opts.audience) ? opts.audience : 'friends';
+  const dungeon = !!opts.dungeon;
+  const versionId = await mp.prepareHost(mc, gameVersion, { pro: isPro(acc), dungeon }, (p) => send('install:progress', { id: gameVersion, ...p }));
   send('install:state', { id: gameVersion, state: 'done' });
-  await launchGame(versionId, { host: true });
+  await launchGame(versionId, { host: true, audience, mode: dungeon ? 'dungeon' : 'normal' });
   return versionId;
 });
 
@@ -578,10 +581,14 @@ handle('friends:join', async (nick) => {
   const list = await friendsCall('GET', '/friends');
   const f = list.friends.find((x) => x.nick.toLowerCase() === String(nick).toLowerCase());
   if (!f?.shared?.address) throw new Error(`${nick} сейчас не открыл мир для друзей`);
-  const versionId = await mp.prepareJoin(mc, f.shared, { pro: isPro(acc) }, (p) => send('install:progress', { id: f.shared.gameVersion, ...p }));
-  send('install:state', { id: f.shared.gameVersion, state: 'done' });
-  await launchGame(versionId, { join: f.shared.address });
+  await joinShared(f.shared, acc);
 });
+
+async function joinShared(shared, acc) {
+  const versionId = await mp.prepareJoin(mc, shared, { pro: isPro(acc) }, (p) => send('install:progress', { id: shared.gameVersion, ...p }));
+  send('install:state', { id: shared.gameVersion, state: 'done' });
+  await launchGame(versionId, { join: shared.address });
+}
 
 // Статус для друзей: раз в минуту и при каждом изменении
 async function heartbeat() {
@@ -590,7 +597,7 @@ async function heartbeat() {
   const body = {
     status: game ? 'playing' : 'online',
     playing: game ? { gameVersion: hosting?.gameVersion || state.selectedVersion } : null,
-    shared: hosting?.address ? { address: hosting.address, gameVersion: hosting.gameVersion, loader: hosting.loader, mods: hosting.mods, world: 'Мир' } : null,
+    shared: hosting?.address ? { address: hosting.address, gameVersion: hosting.gameVersion, loader: hosting.loader, mods: hosting.mods, world: 'Мир', audience: hosting.audience, mode: hosting.mode } : null,
   };
   await economy.server(acc, 'POST', '/presence', body).catch(() => {});
 }
@@ -963,7 +970,15 @@ handle('leaderboard', (by) => friendsCall('GET', `/leaderboard?by=${encodeURICom
 handle('clans:list', () => friendsCall('GET', '/clans'));
 handle('clan:get', () => friendsCall('GET', '/clan'));
 handle('clan:create', (p) => friendsCall('POST', '/clan/create', p));
-handle('clan:join', (tag) => friendsCall('POST', '/clan/join', { tag }));
+handle('clan:join', (tag, text) => friendsCall('POST', '/clan/join', { tag, text }));
+handle('clan:cancelApply', () => friendsCall('POST', '/clan/apply/cancel'));
+handle('clan:answer', (nick, accept) => friendsCall('POST', '/clan/answer', { nick, accept: !!accept }));
+handle('clan:settings', (p) => friendsCall('POST', '/clan/settings', p));
+handle('clan:world', async (tag, host) => {
+  const acc = needAcc();
+  const shared = await friendsCall('GET', `/clan/world?tag=${encodeURIComponent(tag)}&host=${encodeURIComponent(host)}`);
+  await joinShared(shared, acc);
+});
 handle('clan:leave', () => friendsCall('POST', '/clan/leave'));
 handle('clan:kick', (nick) => friendsCall('POST', '/clan/kick', { nick }));
 handle('clan:chat', (after) => friendsCall('GET', `/clan/chat?after=${Number(after) || 0}`));

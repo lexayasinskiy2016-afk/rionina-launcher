@@ -159,26 +159,65 @@ $$('#lbBy button').forEach((b) => b.addEventListener('click', () => {
 
 const clan = { data: null, last: 0, timer: null, form: { emoji: '⚔️', color: '#0a84ff' } };
 
+const WORLD_AUD = { clan: 'для клана', all: 'для всех' };
+const worldRow = (w, tag) => `
+  <div class="acc-row clan-world"><span class="cw-ico">${w.mode === 'dungeon' ? '🗡️' : '🌍'}</span>
+    <div class="meta"><strong>${w.mode === 'dungeon' ? 'Данж' : 'Мир'} ${esc(w.host)}</strong><span>Minecraft ${esc(w.gameVersion)} · ${WORLD_AUD[w.audience] || ''}</span></div>
+    <button class="btn btn-primary btn-sm" data-world="${esc(tag)}" data-host="${esc(w.host)}">Зайти</button></div>`;
+
+async function joinClanWorld(btn) {
+  btn.disabled = true;
+  btn.textContent = 'Подготовка…';
+  toast(`Готовим ту же версию и моды, что у ${btn.dataset.host}, и подключаемся…`, 6000);
+  try { await R.clans.world(btn.dataset.world, btn.dataset.host); } catch (er) { toast(er.message, 6000); }
+  btn.disabled = false;
+  btn.textContent = 'Зайти';
+}
+
+function releaseOptions() {
+  const host = $('#hostVersion');
+  if (host?.options.length) return host.innerHTML;
+  return st.versions.filter((v) => v.type === 'release').slice(0, 40).map((v) => `<option value="${esc(v.id)}">Minecraft ${esc(v.id)}</option>`).join('');
+}
+
 async function renderClans() {
   const box = $('#commClans');
   clearInterval(clan.timer);
   let mine, all;
   try { [mine, all] = await Promise.all([R.clans.get(), R.clans.list()]); } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   clan.data = mine;
+  if (all.notice) toast(all.notice.text, 6000);
   if (mine) {
     const owner = mine.owner.toLowerCase() === st.account?.name.toLowerCase();
+    const reqs = mine.requests || [];
     box.innerHTML = `
       <div class="clan-hero" style="--cc:${esc(mine.color)}">
         <span class="clan-emoji">${esc(mine.emoji)}</span>
-        <div><h3>[${esc(mine.tag)}] ${esc(mine.name)}</h3><span>${mine.members} из ${mine.max} игроков · глава ${esc(mine.owner)}</span></div>
+        <div><h3>[${esc(mine.tag)}] ${esc(mine.name)}</h3><span>${mine.members} из ${mine.max} игроков · глава ${esc(mine.owner)} · ${mine.open ? 'свободный вход' : 'вход по заявке'}</span></div>
         <button class="btn btn-sm btn-ghost" id="clanLeave">Выйти из клана</button>
       </div>
+      ${owner && reqs.length ? `<div class="card clan-reqs"><h4>📨 Заявки в клан · ${reqs.length}</h4>${reqs.map((r) => `
+        <div class="acc-row"><div class="meta"><strong>${esc(r.nick)}</strong><span>${r.text ? `«${esc(r.text)}»` : 'Хочет вступить в клан'}</span></div>
+        <button class="btn btn-primary btn-sm" data-acc="${esc(r.nick)}">Принять</button>
+        <button class="btn btn-secondary btn-sm" data-dec="${esc(r.nick)}">Отклонить</button></div>`).join('')}</div>` : ''}
+      <div class="card clan-worlds">
+        <h4>🏰 Миры клана</h4>
+        ${mine.worlds.length ? mine.worlds.map((w) => worldRow(w, mine.tag)).join('') : '<p class="muted small">Сейчас никто не открыл мир. Откройте свой — клан увидит его здесь.</p>'}
+        <div class="cw-host">
+          <select class="select select-sm" id="cwVersion">${releaseOptions()}</select>
+          <div class="segmented" id="cwAudience"><button class="active" data-v="clan">Только клан</button><button data-v="all">Для всех</button></div>
+          <label class="host-check"><input type="checkbox" id="cwDungeon" /> 🗡️ Данжи</label>
+          <button class="btn btn-primary btn-sm" id="cwOpen">Открыть мир</button>
+        </div>
+      </div>
+      ${owner ? `<div class="card clan-settings"><h4>⚙️ Настройки клана</h4>
+        <label class="host-check"><input type="checkbox" id="clanOpen" ${mine.open ? 'checked' : ''} /> Свободный вход — без заявок</label></div>` : ''}
       <div class="clan-cols">
         <div class="group" id="clanMembers">${mine.list.map((m) => `
           <div class="acc-row"><span class="dot ${m.online ? 'on' : ''}"></span><div class="meta"><strong>${esc(m.nick)}${m.nick === mine.owner ? ' 👑' : ''}${m.pro ? ' <span class="pro-badge">PRO</span>' : ''}</strong><span>${fmtTime(m.playMinutes)} в игре</span></div>
           ${owner && m.nick !== mine.owner ? `<button class="icon-btn" data-kick="${esc(m.nick)}" title="Исключить"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}</div>`).join('')}</div>
         <div class="chat clan-chat">
-          <div class="chat-head"><strong>💬 Чат клана</strong></div>
+          <div class="chat-head"><strong>💬 Чат клана</strong><span class="muted small">без матов и оскорблений</span></div>
           <div class="chat-msgs" id="clanMsgs"></div>
           <form class="chat-form" id="clanForm"><input class="field field-sm" id="clanInput" placeholder="Сообщение клану…" maxlength="500" autocomplete="off" /><button class="btn btn-primary btn-sm">Отправить</button></form>
         </div>
@@ -192,6 +231,34 @@ async function renderClans() {
       await R.clans.leave().catch((er) => toast(er.message));
       refreshMe(); renderClans();
     });
+    box.querySelector('.clan-reqs')?.addEventListener('click', async (e) => {
+      const t = e.target.closest('button');
+      if (!t) return;
+      const nick = t.dataset.acc || t.dataset.dec;
+      try {
+        await R.clans.answer(nick, !!t.dataset.acc);
+        toast(t.dataset.acc ? `${nick} теперь в клане!` : `Заявка ${nick} отклонена`);
+        renderClans();
+      } catch (er) { toast(er.message); }
+    });
+    $('#clanOpen')?.addEventListener('change', async (e) => {
+      try { await R.clans.settings({ open: e.target.checked }); toast(e.target.checked ? 'Теперь в клан можно вступить без заявки' : 'Теперь в клан вступают по заявке'); renderClans(); } catch (er) { toast(er.message); }
+    });
+    let cwAud = 'clan';
+    $$('#cwAudience button').forEach((b) => b.addEventListener('click', () => { cwAud = b.dataset.v; $$('#cwAudience button').forEach((x) => x.classList.toggle('active', x === b)); }));
+    $('#cwOpen').addEventListener('click', async (e) => {
+      const v = $('#cwVersion').value;
+      if (!v) return toast('Выберите версию');
+      const b = e.currentTarget;
+      b.disabled = true;
+      b.textContent = $('#cwDungeon').checked ? 'Ставим данжи…' : 'Готовим игру…';
+      try {
+        await hostWorld(v, cwAud, $('#cwDungeon').checked);
+        b.textContent = 'Мир открывается…';
+        toast($('#cwDungeon').checked ? 'Создайте новый мир — в нём появятся данжи. Потом Esc → «Открыть для сети»' : 'Войдите в мир и нажмите Esc → «Открыть для сети»', 8000);
+      } catch (er) { toast(er.message, 6000); b.disabled = false; b.textContent = 'Открыть мир'; }
+    });
+    box.querySelectorAll('[data-world]').forEach((b) => b.addEventListener('click', () => joinClanWorld(b)));
     $('#clanMembers').addEventListener('click', async (e) => {
       const k = e.target.closest('[data-kick]');
       if (!k) return;
@@ -206,7 +273,13 @@ async function renderClans() {
     });
     return;
   }
-  // Нет клана: создать или вступить
+  // Нет клана: создать, вступить или подать заявку
+  const cardBtn = (c) => {
+    if (all.applied === c.tag) return `<button class="btn btn-sm btn-secondary" data-cancel="1">Заявка отправлена · Отменить</button>`;
+    if (c.members >= c.max) return '<button class="btn btn-sm btn-secondary" disabled>Мест нет</button>';
+    return c.open ? `<button class="btn btn-sm btn-primary" data-join="${esc(c.tag)}">Вступить</button>`
+      : `<button class="btn btn-sm btn-primary" data-apply="${esc(c.tag)}">Подать заявку</button>`;
+  };
   box.innerHTML = `
     <form class="card clan-create" id="clanCreate">
       <h4>Создать клан · <i class="coin"></i> ${all.price}</h4>
@@ -216,29 +289,59 @@ async function renderClans() {
       </div>
       <div class="cc-pick" id="ccEmoji">${all.emoji.map((e) => `<button type="button" data-e="${e}" class="${e === clan.form.emoji ? 'active' : ''}">${e}</button>`).join('')}</div>
       <div class="cc-pick colors" id="ccColor">${all.colors.map((c) => `<button type="button" data-c="${c}" style="background:${c}" class="${c === clan.form.color ? 'active' : ''}"></button>`).join('')}</div>
+      <label class="host-check"><input type="checkbox" id="ccOpen" /> Свободный вход — без заявок</label>
       <button class="btn btn-primary btn-sm">Создать клан</button>
     </form>
     <h3 class="section-title">Кланы Rionina</h3>
     <div class="clans-grid">${all.clans.length ? all.clans.map((c) => `
       <div class="clan-card" style="--cc:${esc(c.color)}">
-        <span class="clan-emoji">${esc(c.emoji)}</span>
-        <div class="cc-meta"><strong>[${esc(c.tag)}] ${esc(c.name)}</strong><span class="muted small">${c.members} / ${c.max} игроков</span></div>
-        <button class="btn btn-sm btn-primary" data-join="${esc(c.tag)}" ${c.members >= c.max ? 'disabled' : ''}>Вступить</button>
+        <div class="cc-top">
+          <span class="clan-emoji">${esc(c.emoji)}</span>
+          <div class="cc-meta"><strong>[${esc(c.tag)}] ${esc(c.name)}</strong><span class="muted small">${c.members} / ${c.max} игроков · ${c.open ? 'свободный вход' : 'по заявке'} · глава ${esc(c.owner)}</span></div>
+          ${cardBtn(c)}
+        </div>
+        <div class="cc-apply hidden" data-form="${esc(c.tag)}">
+          <input class="field field-sm" maxlength="200" placeholder="Сообщение главе клана (необязательно)" />
+          <button class="btn btn-primary btn-sm" data-send="${esc(c.tag)}">Отправить</button>
+        </div>
+        ${(c.worlds || []).map((w) => worldRow(w, c.tag)).join('')}
       </div>`).join('') : '<div class="empty">Кланов пока нет — создайте первый!</div>'}</div>`;
   $('#ccEmoji').addEventListener('click', (e) => { const b = e.target.closest('[data-e]'); if (!b) return; clan.form.emoji = b.dataset.e; $$('#ccEmoji button').forEach((x) => x.classList.toggle('active', x === b)); });
   $('#ccColor').addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (!b) return; clan.form.color = b.dataset.c; $$('#ccColor button').forEach((x) => x.classList.toggle('active', x === b)); });
   $('#clanCreate').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      const r = await R.clans.create({ tag: $('#ccTag').value.trim(), name: $('#ccName').value.trim(), emoji: clan.form.emoji, color: clan.form.color });
+      const r = await R.clans.create({ tag: $('#ccTag').value.trim(), name: $('#ccName').value.trim(), emoji: clan.form.emoji, color: clan.form.color, open: $('#ccOpen').checked });
       setMe(r.me);
       toast(`⚔️ Клан [${r.clan.tag}] создан!`);
       renderClans();
     } catch (er) { toast(er.message, 5000); }
   });
-  box.querySelectorAll('[data-join]').forEach((b) => b.addEventListener('click', async () => {
-    try { await R.clans.join(b.dataset.join); toast(`Вы вступили в клан [${b.dataset.join}]`); refreshMe(); renderClans(); } catch (er) { toast(er.message); }
-  }));
+  box.querySelector('.clans-grid').addEventListener('click', async (e) => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    try {
+      if (t.dataset.join) {
+        await R.clans.join(t.dataset.join);
+        toast(`Вы вступили в клан [${t.dataset.join}]`);
+        refreshMe(); renderClans();
+      } else if (t.dataset.apply) {
+        const f = box.querySelector(`[data-form="${CSS.escape(t.dataset.apply)}"]`);
+        f.classList.toggle('hidden');
+        f.querySelector('input').focus();
+      } else if (t.dataset.send) {
+        const text = box.querySelector(`[data-form="${CSS.escape(t.dataset.send)}"] input`).value.trim();
+        const r = await R.clans.join(t.dataset.send, text);
+        if (r.joined) { toast(`Вы вступили в клан [${t.dataset.send}]`); refreshMe(); } else toast(`📨 Заявка отправлена главе клана [${t.dataset.send}] — ждите ответа`, 5000);
+        renderClans();
+      } else if (t.dataset.cancel) {
+        await R.clans.cancelApply();
+        renderClans();
+      } else if (t.dataset.world) {
+        joinClanWorld(t);
+      }
+    } catch (er) { toast(er.message, 5000); }
+  });
 }
 
 async function pollClanChat() {

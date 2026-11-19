@@ -59,7 +59,7 @@ document.querySelector('.nav[data-tab="pro"]').addEventListener('click', () => r
 const fr = { timer: null, data: null };
 
 function statusText(f) {
-  if (f.shared) return `🟢 Открыл мир · ${esc(f.shared.gameVersion)}`;
+  if (f.shared) return `🟢 ${f.shared.mode === 'dungeon' ? 'Открыл данж' : 'Открыл мир'} · ${esc(f.shared.gameVersion)}`;
   if (f.status === 'playing') return `🎮 Играет${f.playing?.gameVersion ? ` в ${esc(f.playing.gameVersion)}` : ''}`;
   return f.online ? '🟢 В лаунчере' : '⚪ Не в сети';
 }
@@ -143,15 +143,32 @@ async function fillHostVersions() {
   sel.innerHTML = list.slice(0, 40).map((v) => `<option value="${esc(v)}">Minecraft ${esc(v)}</option>`).join('');
 }
 
+let hostAudience = 'friends';
+const hostLabel = () => (hostAudience === 'friends' ? 'Разрешить для друзей' : hostAudience === 'clan' ? 'Открыть для клана' : 'Открыть для всех');
+
 function renderHosting(h) {
   const box = $('#hostStatus');
   box.classList.toggle('hidden', !h);
-  if (!h) { $('#btnHost').disabled = false; $('#btnHost').textContent = 'Разрешить для друзей'; return; }
+  if (!h) { $('#btnHost').disabled = false; $('#btnHost').textContent = hostLabel(); return; }
   $('#btnHost').disabled = true;
   $('#btnHost').textContent = 'Мир открыт';
+  const who = h.audience === 'clan' ? 'Клан видит' : h.audience === 'all' ? 'Все игроки видят' : 'Друзья видят';
   box.innerHTML = h.address
-    ? `✅ Друзья видят ваш мир и могут зайти.<br><span class="muted small">Адрес: <b>${esc(h.address)}</b></span>`
-    : `⏳ Игра запущена. Войдите в мир и нажмите <b>Esc → «Открыть для сети»</b>.<br><span class="muted small">Если у друзей нет купленного Minecraft — выключите там «Online Mode».</span>`;
+    ? `✅ ${who} ваш ${h.mode === 'dungeon' ? 'данж' : 'мир'} и могут зайти.<br><span class="muted small">Адрес: <b>${esc(h.address)}</b></span>`
+    : `⏳ Игра запущена. ${h.mode === 'dungeon' ? 'Создайте <b>новый мир</b> — в нём появятся данжи, затем' : 'Войдите в мир и'} нажмите <b>Esc → «Открыть для сети»</b>.<br><span class="muted small">Если у друзей нет купленного Minecraft — выключите там «Online Mode».</span>`;
+}
+
+document.querySelectorAll('#hostAudience button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('#hostAudience button').forEach((x) => x.classList.toggle('active', x === b));
+  hostAudience = b.dataset.v;
+  if (!$('#btnHost').disabled) $('#btnHost').textContent = hostLabel();
+}));
+
+/** Открыть мир: для друзей, клана или всех; с данжами или без. */
+async function hostWorld(version, audience, dungeon) {
+  if (audience !== 'friends' && !st.me?.clan) throw new Error('Вы не в клане — вступите в клан во вкладке «Сообщество»');
+  await R.friends.host(version, { audience, dungeon });
+  renderHosting({ address: null, audience, mode: dungeon ? 'dungeon' : 'normal' });
 }
 
 $('#btnHost').addEventListener('click', async () => {
@@ -159,19 +176,18 @@ $('#btnHost').addEventListener('click', async () => {
   if (!v) return;
   const b = $('#btnHost');
   b.disabled = true;
-  b.textContent = 'Готовим игру…';
+  b.textContent = $('#hostDungeon').checked ? 'Ставим данжи…' : 'Готовим игру…';
   try {
-    await R.friends.host(v);
-    renderHosting({ address: null });
+    await hostWorld(v, hostAudience, $('#hostDungeon').checked);
   } catch (e) {
     toast(e.message, 6000);
     renderHosting(null);
   }
 });
 
-R.onHosting((h) => {
-  renderHosting(h);
-  if (h?.address) toast('Мир открыт для друзей — они увидят кнопку «Зайти»');
+R.onHosting(async (h) => {
+  renderHosting(h ? { ...(await R.friends.hostState().catch(() => null)), ...h } : null);
+  if (h?.address) toast('Мир открыт — игроки увидят кнопку «Зайти»');
 });
 
 document.querySelector('.nav[data-tab="friends"]').addEventListener('click', async () => {

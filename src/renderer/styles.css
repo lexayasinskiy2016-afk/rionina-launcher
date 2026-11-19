@@ -708,8 +708,22 @@ body:not(.mac) .call-bar, body:not(.mac) .update-bar { right: 130px; }
 .cc-pick button.active { box-shadow: 0 0 0 2px var(--accent); }
 .cc-pick.colors button { border-radius: 50%; width: 26px; height: 26px; }
 .clan-create > .btn { align-self: flex-start; }
-.clans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.clans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
 .clan-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); border-left: 5px solid var(--cc); }
 .clan-card .clan-emoji { font-size: 28px; }
 .cc-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 body.glassy .shop-item, body.glassy .clan-card { background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(24px); }
+
+/* Кланы: заявки, миры, настройки */
+.clan-reqs, .clan-worlds, .clan-settings { margin-bottom: 14px; display: flex; flex-direction: column; gap: 6px; }
+.clan-reqs h4, .clan-worlds h4, .clan-settings h4 { margin: 0 0 4px; }
+.cw-ico { font-size: 22px; }
+.cw-host, .host-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.host-opts { margin: 4px 0 8px; }
+.host-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.clan-card { flex-direction: column; align-items: stretch; }
+.cc-top { display: flex; align-items: center; gap: 12px; }
+.cc-apply { display: flex; gap: 6px; }
+.cc-apply input { flex: 1; min-width: 0; }
+.clan-card .clan-world { padding: 6px 0 0; }
+.chat-head .muted { margin-left: auto; }
