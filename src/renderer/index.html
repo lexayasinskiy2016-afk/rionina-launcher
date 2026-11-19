@@ -137,20 +137,6 @@
     </aside>
 
     <main class="content">
-      <div class="call-bar hidden" id="callBar">
-        <span class="call-dot"></span>
-        <div class="ub-text"><strong id="callTitle"></strong><span class="muted small" id="callSub"></span></div>
-        <button class="btn btn-sm btn-call-ok hidden" id="callAccept">Принять</button>
-        <button class="btn btn-secondary btn-sm hidden" id="callMute">🎤 Вкл</button>
-        <button class="btn btn-sm btn-call-end" id="callEnd">Завершить</button>
-      </div>
-      <div class="update-bar hidden" id="updateBar">
-        <span class="ub-icon">⬆️</span>
-        <div class="ub-text"><strong id="ubTitle">Обновите Rionina Launcher до новой версии</strong><span id="ubNotes" class="muted small"></span></div>
-        <div class="ub-progress hidden" id="ubProgress"><div id="ubFill"></div></div>
-        <button class="btn btn-primary btn-sm" id="ubBtn">Обновить</button>
-        <button class="icon-btn" id="ubClose" title="Позже"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </div>
       <!-- Новости -->
       <div class="tab" id="tab-news">
         <header class="page-head drag"><h2>Новости</h2><p class="muted">Что нового в Minecraft</p></header>
@@ -648,6 +634,21 @@
         </div>
         <button class="btn btn-play" id="btnPlay">Играть</button>
       </footer>
+      <!-- Полоски звонка и обновления — в конце, чтобы быть поверх области перетаскивания окна -->
+      <div class="call-bar hidden" id="callBar">
+        <span class="call-dot"></span>
+        <div class="ub-text"><strong id="callTitle"></strong><span class="muted small" id="callSub"></span></div>
+        <button class="btn btn-sm btn-call-ok hidden" id="callAccept">Принять</button>
+        <button class="btn btn-secondary btn-sm hidden" id="callMute">🎤 Вкл</button>
+        <button class="btn btn-sm btn-call-end" id="callEnd">Завершить</button>
+      </div>
+      <div class="update-bar hidden" id="updateBar">
+        <span class="ub-icon">⬆️</span>
+        <div class="ub-text"><strong id="ubTitle">Обновите Rionina Launcher до новой версии</strong><span id="ubNotes" class="muted small"></span></div>
+        <div class="ub-progress hidden" id="ubProgress"><div id="ubFill"></div></div>
+        <button class="btn btn-primary btn-sm" id="ubBtn">Обновить</button>
+        <button class="icon-btn" id="ubClose" title="Позже"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
     </main>
   </section>
 
