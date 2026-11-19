@@ -23,7 +23,7 @@ const ECONOMY = {
 const ONLINE_MS = 150_000; // считаем онлайн, если лаунчер отзывался последние 2,5 минуты
 
 // ───────────── Хранилище (JSON-файл) ─────────────
-let db = { users: {}, sessions: {}, requests: [], chats: {}, unread: {}, packs: [] };
+let db = { users: {}, sessions: {}, requests: [], chats: {}, unread: {}, packs: [], clans: {} };
 
 // Где хранить данные: в Postgres (бесплатный Neon), если задан DATABASE_URL, иначе в файле.
 // В Postgres вся база лежит одной JSON-строкой — просто и надёжно для небольшого проекта.
@@ -121,6 +121,7 @@ function me(u) {
     nextDaily: ECONOMY.daily[Math.min(u.streak, ECONOMY.daily.length - 1)] * (isPro(u) ? 2 : 1),
     stats: { playMinutes: u.playMinutes || 0, chestsOpened: u.chestsOpened || 0, friends: u.friends.length },
     achievements: u.achievements || [],
+    owned: u.owned || [], clan: u.clan || null,
     friendsLimit: limitFor(u), economy: { chests: ECONOMY.chests, proPriceUsd: ECONOMY.proPriceUsd, proFree: ECONOMY.proFree },
   };
 }
@@ -228,7 +229,7 @@ function publicFriend(nick) {
   const p = f.presence;
   const online = !!p && now() - p.at < ONLINE_MS;
   return {
-    nick: f.nick, uuid: f.uuid, pro: isPro(f), online,
+    nick: f.nick, uuid: f.uuid, pro: isPro(f), online, clan: f.clan || null,
     status: online ? p.status : 'offline',
     playing: online ? p.playing || null : null,
     shared: online && p.shared && p.shared.address ? p.shared : null,
@@ -492,6 +493,169 @@ route('GET', '/api/call/poll', ({ user }) => {
   const box = (mailboxes.get(lower(user.nick)) || []).filter((m) => now() - m.at < 60000);
   mailboxes.delete(lower(user.nick));
   return { messages: box };
+});
+
+// ───────────── Магазин за Rionina Coins ─────────────
+// Каталог: id → редкость. Те же id, что в лаунчере (эффекты, скины и плащи).
+const CATALOG = {
+  lightning: 'epic', fire: 'rare', snow: 'common', hearts: 'common', sparkles: 'rare', rainbow: 'epic', bubbles: 'common',
+  portal: 'epic', matrix: 'rare', aura: 'legendary', confetti: 'common', galaxy: 'legendary',
+  fire_lord: 'epic', ice_queen: 'epic', gold_knight: 'legendary', galaxy_skin: 'legendary', neon: 'rare', emerald: 'rare', shadow: 'rare', samurai: 'rare',
+  cape_rionina: 'rare', cape_night: 'common', cape_forest: 'common', cape_love: 'common', cape_storm: 'epic', cape_fire: 'epic', cape_star: 'rare', cape_king: 'legendary',
+};
+const PRICES = { common: 150, rare: 400, epic: 900, legendary: 2000 };
+const SHOP_SIZE = 6;
+
+/** Набор магазина на сегодня — одинаковый у всех игроков и в лаунчере */
+function shopToday(day = dayIndex(now())) {
+  const ids = Object.keys(CATALOG).sort();
+  let seed = day * 2654435761 % 4294967296;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  const pick = [];
+  while (pick.length < SHOP_SIZE) { const id = ids[Math.floor(rnd() * ids.length)]; if (!pick.includes(id)) pick.push(id); }
+  return pick;
+}
+const priceFor = (u, id) => Math.round(PRICES[CATALOG[id]] * (isPro(u) ? 0.8 : 1));
+
+route('GET', '/api/shop', ({ user }) => ({
+  day: dayIndex(now()),
+  items: shopToday().map((id) => ({ id, rarity: CATALOG[id], price: priceFor(user, id), owned: (user.owned || []).includes(id) })),
+}));
+route('POST', '/api/shop/buy', ({ user, body }) => {
+  const id = String(body.id || '');
+  if (!shopToday().includes(id)) throw httpError(400, 'Этого предмета сегодня нет в магазине');
+  user.owned ||= [];
+  if (user.owned.includes(id)) throw httpError(409, 'Этот предмет уже у вас есть');
+  const price = priceFor(user, id);
+  if (user.coins < price) throw httpError(402, `Не хватает монет: нужно ${price}`);
+  user.coins -= price;
+  user.owned.push(id);
+  save();
+  return { id, paid: price, me: me(user) };
+});
+// Предметы из сундуков тоже запоминаем — чтобы коллекция была на любом компьютере
+route('POST', '/api/owned/add', ({ user, body }) => {
+  const id = String(body.id || '');
+  if (!CATALOG[id]) throw httpError(400, 'Нет такого предмета');
+  user.owned ||= [];
+  if (!user.owned.includes(id)) { user.owned.push(id); save(); }
+  return { ok: true };
+});
+
+// ───────────── Рейтинг игроков ─────────────
+const BOARDS = {
+  play: (u) => u.playMinutes || 0,
+  chests: (u) => u.chestsOpened || 0,
+  achievements: (u) => (u.achievements || []).length,
+  coins: (u) => u.coins || 0,
+};
+route('GET', '/api/leaderboard', ({ req, user }) => {
+  const by = new URL(req.url, 'http://x').searchParams.get('by');
+  const score = BOARDS[by] || BOARDS.play;
+  const all = Object.values(db.users).map((u) => ({ nick: u.nick, uuid: u.uuid, pro: isPro(u), clan: u.clan || null, value: score(u) }))
+    .filter((x) => x.value > 0).sort((a, b) => b.value - a.value);
+  const myIndex = all.findIndex((x) => lower(x.nick) === lower(user.nick));
+  return { by: BOARDS[by] ? by : 'play', top: all.slice(0, 50), me: myIndex >= 0 ? { rank: myIndex + 1, value: all[myIndex].value } : { rank: null, value: 0 } };
+});
+
+// ───────────── Кланы ─────────────
+const CLAN_PRICE = 300;
+const CLAN_MAX = 30;
+const CLAN_EMOJI = ['🐉', '⚔️', '🛡️', '🔥', '❄️', '⚡', '🌙', '⭐', '👑', '💎', '🐺', '🦊', '🌲', '🏰', '🚀', '☠️'];
+const CLAN_COLORS = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#00c7be', '#0a84ff', '#5856d6', '#af52de', '#ff2d55', '#8e8e93'];
+const TAG_RE = /^[A-Za-zА-Яа-яЁё0-9]{2,5}$/;
+
+function clanPublic(c, withMembers) {
+  const out = { tag: c.tag, name: c.name, emoji: c.emoji, color: c.color, owner: c.owner, members: c.members.length, max: CLAN_MAX, created: c.created };
+  if (withMembers) {
+    out.list = c.members.map((n) => {
+      const u = db.users[lower(n)];
+      const online = !!u?.presence && now() - u.presence.at < ONLINE_MS;
+      return { nick: u?.nick || n, uuid: u?.uuid, pro: u ? isPro(u) : false, online, playMinutes: u?.playMinutes || 0 };
+    });
+  }
+  return out;
+}
+const myClan = (u) => (u.clan ? db.clans[lower(u.clan)] : null);
+
+route('GET', '/api/clans', () => ({
+  clans: Object.values(db.clans).sort((a, b) => b.members.length - a.members.length).slice(0, 50).map((c) => clanPublic(c, false)),
+  price: CLAN_PRICE, emoji: CLAN_EMOJI, colors: CLAN_COLORS,
+}));
+route('GET', '/api/clan', ({ user }) => {
+  const c = myClan(user);
+  return c ? clanPublic(c, true) : null;
+});
+route('POST', '/api/clan/create', ({ user, body }) => {
+  if (myClan(user)) throw httpError(409, 'Вы уже в клане — сначала выйдите из него');
+  const tag = String(body.tag || '').trim();
+  const name = String(body.name || '').trim().slice(0, 24);
+  if (!TAG_RE.test(tag)) throw httpError(400, 'Тег клана: 2–5 букв или цифр');
+  if (name.length < 3) throw httpError(400, 'Название клана — минимум 3 символа');
+  if (isRude(`${tag} ${name}`) || BLOCKED.some((re) => re.test(`${tag} ${name}`))) throw httpError(400, 'Название не прошло модерацию');
+  if (db.clans[lower(tag)]) throw httpError(409, 'Такой тег уже занят');
+  if (user.coins < CLAN_PRICE) throw httpError(402, `Создание клана стоит ${CLAN_PRICE} монет`);
+  user.coins -= CLAN_PRICE;
+  const clan = {
+    tag, name, owner: user.nick, members: [user.nick], created: now(), chat: [],
+    emoji: CLAN_EMOJI.includes(body.emoji) ? body.emoji : '⚔️', color: CLAN_COLORS.includes(body.color) ? body.color : '#0a84ff',
+  };
+  db.clans[lower(tag)] = clan;
+  user.clan = tag;
+  save();
+  return { clan: clanPublic(clan, true), me: me(user) };
+});
+route('POST', '/api/clan/join', ({ user, body }) => {
+  if (myClan(user)) throw httpError(409, 'Вы уже в клане — сначала выйдите из него');
+  const c = db.clans[lower(body.tag)];
+  if (!c) throw httpError(404, 'Клан не найден');
+  if (c.members.length >= CLAN_MAX) throw httpError(403, 'В клане нет мест');
+  c.members.push(user.nick);
+  user.clan = c.tag;
+  c.chat.push({ from: '★', text: `${user.nick} вступил в клан`, at: now() });
+  save();
+  return clanPublic(c, true);
+});
+route('POST', '/api/clan/leave', ({ user }) => {
+  const c = myClan(user);
+  if (!c) return { ok: true };
+  c.members = c.members.filter((n) => lower(n) !== lower(user.nick));
+  user.clan = null;
+  if (!c.members.length) delete db.clans[lower(c.tag)];
+  else {
+    if (lower(c.owner) === lower(user.nick)) c.owner = c.members[0]; // глава ушёл — главой становится следующий
+    c.chat.push({ from: '★', text: `${user.nick} покинул клан`, at: now() });
+  }
+  save();
+  return { ok: true };
+});
+route('POST', '/api/clan/kick', ({ user, body }) => {
+  const c = myClan(user);
+  if (!c || lower(c.owner) !== lower(user.nick)) throw httpError(403, 'Исключать может только глава клана');
+  const target = db.users[lower(body.nick)];
+  if (!target || lower(target.nick) === lower(user.nick) || !c.members.some((n) => lower(n) === lower(target.nick))) throw httpError(404, 'Игрок не в клане');
+  c.members = c.members.filter((n) => lower(n) !== lower(target.nick));
+  target.clan = null;
+  c.chat.push({ from: '★', text: `${target.nick} исключён из клана`, at: now() });
+  save();
+  return clanPublic(c, true);
+});
+route('GET', '/api/clan/chat', ({ req, user }) => {
+  const c = myClan(user);
+  if (!c) throw httpError(404, 'Вы не в клане');
+  const after = Number(new URL(req.url, 'http://x').searchParams.get('after')) || 0;
+  return { messages: c.chat.filter((m) => m.at > after) };
+});
+route('POST', '/api/clan/chat', ({ user, body }) => {
+  const c = myClan(user);
+  if (!c) throw httpError(404, 'Вы не в клане');
+  const text = String(body.text || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  if (!text) throw httpError(400, 'Пустое сообщение');
+  const msg = { from: user.nick, text: moderateText(text), at: now() };
+  c.chat.push(msg);
+  if (c.chat.length > 300) c.chat.splice(0, c.chat.length - 300);
+  save();
+  return msg;
 });
 
 // Новости для сайта и лаунчера

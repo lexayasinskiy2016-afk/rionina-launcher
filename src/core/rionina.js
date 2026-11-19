@@ -228,6 +228,32 @@ class Economy {
     }
   }
 
+  async shop(acc) {
+    try { return await this.server(acc, 'GET', '/shop'); } catch (e) {
+      if (!(e instanceof Offline)) throw e;
+      const eco = this.eco(acc);
+      const shop = require('./shop');
+      return { day: shop.dayIndex(Date.now()), items: shop.shopToday().map((id) => ({ id, rarity: shop.CATALOG[id], price: shop.priceFor(eco.pro, id), owned: (eco.owned || []).includes(id) })) };
+    }
+  }
+
+  async buy(acc, id) {
+    try { return await this.server(acc, 'POST', '/shop/buy', { id }); } catch (e) {
+      if (!(e instanceof Offline)) throw e;
+      const eco = this.eco(acc);
+      const shop = require('./shop');
+      if (!shop.shopToday().includes(id)) throw new Error('Этого предмета сегодня нет в магазине');
+      eco.owned ||= [];
+      if (eco.owned.includes(id)) throw new Error('Этот предмет уже у вас есть');
+      const price = shop.priceFor(eco.pro, id);
+      if (eco.coins < price) throw new Error(`Не хватает монет: нужно ${price}`);
+      eco.coins -= price;
+      eco.owned.push(id);
+      this.save();
+      return { id, paid: price, me: localMe(eco, acc) };
+    }
+  }
+
   async activatePro(acc) {
     // Pro продаётся за $10; оплата картой подключится позже — бесплатно не выдаём
     try { return await this.server(acc, 'POST', '/pro/activate'); } catch (e) {

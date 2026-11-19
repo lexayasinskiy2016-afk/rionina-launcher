@@ -95,6 +95,12 @@ async function loadRemoteConfig() {
       save();
       send('server:changed', url);
     }
+    // Объявления от Rionina (их пишут в site/config.json — выпускать версию не нужно)
+    const list = Array.isArray(cfg.announcements) ? cfg.announcements : [];
+    state.announcements = list
+      .filter((a) => a && a.id && a.text && (!a.until || Date.parse(a.until) > Date.now()))
+      .map((a) => ({ id: String(a.id).slice(0, 40), text: String(a.text).slice(0, 400), title: String(a.title || 'Rionina').slice(0, 60), style: ['info', 'event', 'warning'].includes(a.style) ? a.style : 'info' }));
+    send('announce', state.announcements);
   } catch { /* без сети — оставим прошлый адрес */ }
 }
 const economy = new Economy(api, state, () => save());
@@ -157,6 +163,7 @@ app.whenReady().then(() => {
   createWindow();
   setTimeout(checkUpdates, 5000);
   loadRemoteConfig();
+  setInterval(loadRemoteConfig, 30 * 60e3);
   // Голосовые звонки: разрешаем лаунчеру микрофон
   const { session } = require('electron');
   session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media'));
@@ -413,7 +420,10 @@ handle('packs:installOwn', async ({ packId, versionId }) => {
 
 // ───────────── Запуск игры ─────────────
 
-let hosting = null; // { versionId, gameVersion, mods, address }
+let hosting = null;
+let crashLog = [];
+let stoppedByUser = false;
+let lastCrash = null; // { versionId, gameVersion, mods, address }
 
 async function launchGame(id, { join = null, host = false } = {}) {
   requireUpToDate();
@@ -440,6 +450,7 @@ async function launchGame(id, { join = null, host = false } = {}) {
   const installed = (await mc.listInstalled()).find((v) => v.id === id);
   if (host) hosting = { versionId: id, gameVersion: installed?.gameVersion || id, loader: installed?.loader || null, mods: await mp.modList(mc, id).catch(() => []), address: null };
 
+  crashLog = [];
   send('game:state', { state: 'starting', id });
   await aimods.syncWorlds(gameDir).catch(() => {}); // ИИ-моды — во все миры
   startPlayClock(acc);
@@ -447,6 +458,8 @@ async function launchGame(id, { join = null, host = false } = {}) {
   game = await mc.launch(id, acc, { ...state, pro: isPro(acc), join }, {
     onLog: (line) => {
       send('game:log', line);
+      crashLog.push(line);
+      if (crashLog.length > 4000) crashLog.splice(0, crashLog.length - 3000);
       if (hosting && !hosting.address) {
         const address = mp.findAddress(line);
         if (address) {
@@ -459,6 +472,8 @@ async function launchGame(id, { join = null, host = false } = {}) {
     onExit: (code) => {
       game = null;
       stopPlayClock();
+      if (code !== 0 && !stoppedByUser) reportCrash(id, gameDir);
+      stoppedByUser = false;
       setTimeout(stopShotWatch, 3000);
       if (hosting) { hosting = null; send('friends:hosting', null); }
       send('game:state', { state: 'closed', id, code });
@@ -481,7 +496,7 @@ function requireUpToDate() {
     throw new Error(`Сначала обновите Rionina Launcher до версии ${updateInfo.version} — без обновления играть нельзя`);
   }
 }
-handle('game:stop', () => { if (game) game.kill(); });
+handle('game:stop', () => { if (game) { stoppedByUser = true; game.kill(); } });
 
 // ───────────── Bedrock ─────────────
 
@@ -881,3 +896,75 @@ handle('servers:play', async ({ address, versionId }) => {
 
 handle('call:signal', ({ to, data }) => friendsCall('POST', '/call/signal', { to, data }));
 handle('call:poll', () => friendsCall('GET', '/call/poll'));
+
+// ───────────── Вылеты игры: разбор и починка ─────────────
+
+const crash = require('./core/crash');
+function reportCrash(versionId, gameDir) {
+  let log = crashLog.join('');
+  // Отчёт о вылете Minecraft (crash-reports), если появился за последние 2 минуты
+  try {
+    const dir = path.join(gameDir, 'crash-reports');
+    const latest = fs.readdirSync(dir).map((f) => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs })).sort((a, b) => b.t - a.t)[0];
+    if (latest && Date.now() - latest.t < 120000) log += '\n' + fs.readFileSync(path.join(dir, latest.f), 'utf8');
+  } catch { /* отчёта нет */ }
+  const analysis = crash.analyze(log);
+  lastCrash = { versionId, gameDir, log, analysis };
+  send('game:crash', { ...analysis, versionId, ai: !!state.geminiKey });
+}
+handle('crash:ai', async () => {
+  if (!lastCrash) throw new Error('Вылетов не было');
+  if (!state.geminiKey) throw new Error('Подключите нейросеть во вкладке «ИИ-сборки» → «Новый мод от ИИ»');
+  const v = (await mc.listInstalled()).find((x) => x.id === lastCrash.versionId);
+  return crash.explainWithAI(state.geminiKey, lastCrash.log, `Версия Minecraft ${v?.gameVersion || lastCrash.versionId}, загрузчик ${v?.loader || 'нет'}.`);
+});
+handle('crash:fix', async (fix) => {
+  if (!lastCrash) throw new Error('Вылетов не было');
+  const { versionId, gameDir } = lastCrash;
+  if (fix.type === 'memory') {
+    const total = Math.floor(require('os').totalmem() / 1024 / 1024);
+    state.memory = Math.min(Math.floor((total * 0.7) / 512) * 512, (state.memory || 4096) + 2048);
+    save();
+    return `Теперь игре выделено ${(state.memory / 1024).toFixed(1)} ГБ`;
+  }
+  if (fix.type === 'memory-down') { state.memory = 4096; save(); return 'Теперь игре выделено 4 ГБ'; }
+  if (fix.type === 'disable-mod') {
+    const dir = path.join(gameDir, 'mods');
+    const id = String(fix.modId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const file = fs.readdirSync(dir).find((f) => f.endsWith('.jar') && f.toLowerCase().replace(/[^a-z0-9]/g, '').includes(id));
+    if (!file) throw new Error(`Не нашёл файл мода «${fix.modId}» — выключите его во вкладке «Моды»`);
+    fs.renameSync(path.join(dir, file), path.join(dir, `${file}.disabled`));
+    return `Мод ${file} выключен`;
+  }
+  if (fix.type === 'install-mod') {
+    const v = (await mc.listInstalled()).find((x) => x.id === versionId);
+    await modrinth.installProject({ projectId: String(fix.slug), type: 'mod', gameVersion: v.gameVersion, gameDir, loader: v.loader || 'fabric' });
+    return `Мод ${fix.slug} установлен`;
+  }
+  if (fix.type === 'reinstall') {
+    fs.rmSync(path.join(ROOT, 'versions', versionId, '.rionina-installed'), { force: true });
+    enqueue(versionId);
+    return 'Версия переустанавливается — прогресс внизу';
+  }
+  throw new Error('Неизвестное действие');
+});
+
+// ───────────── Объявления, магазин, рейтинг, кланы ─────────────
+
+handle('announce:list', async () => { await loadRemoteConfig(); return state.announcements || []; });
+handle('shop:get', () => economy.shop(needAcc()));
+handle('shop:buy', async (id) => {
+  const r = await economy.buy(needAcc(), id);
+  proCache.set(needAcc().uuid, !!r.me?.pro);
+  return r;
+});
+handle('owned:add', (id) => economy.server(needAcc(), 'POST', '/owned/add', { id }).catch(() => null));
+handle('leaderboard', (by) => friendsCall('GET', `/leaderboard?by=${encodeURIComponent(by || 'play')}`));
+handle('clans:list', () => friendsCall('GET', '/clans'));
+handle('clan:get', () => friendsCall('GET', '/clan'));
+handle('clan:create', (p) => friendsCall('POST', '/clan/create', p));
+handle('clan:join', (tag) => friendsCall('POST', '/clan/join', { tag }));
+handle('clan:leave', () => friendsCall('POST', '/clan/leave'));
+handle('clan:kick', (nick) => friendsCall('POST', '/clan/kick', { nick }));
+handle('clan:chat', (after) => friendsCall('GET', `/clan/chat?after=${Number(after) || 0}`));
+handle('clan:say', (text) => friendsCall('POST', '/clan/chat', { text }));

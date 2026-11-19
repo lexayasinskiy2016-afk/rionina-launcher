@@ -103,6 +103,10 @@
           <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.6 0 4.4 1.4 5 4"/></svg>
           Друзья
         </button>
+        <button class="nav" data-tab="community">
+          <svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+          Сообщество
+        </button>
         <button class="nav" data-tab="profile">
           <svg viewBox="0 0 24 24"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.4l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/><path d="M8 21h8"/></svg>
           Профиль
@@ -332,6 +336,15 @@
         <header class="page-head drag"><h2>Сундуки</h2><p class="muted">Забирайте монеты каждый день и открывайте сундуки — внутри скины и эффекты</p></header>
         <div class="scroll">
           <div class="daily" id="dailyCard"></div>
+          <div class="segmented chest-mode" id="chestMode">
+            <button class="active" data-v="chests">🎁 Сундуки</button>
+            <button data-v="shop">🛒 Магазин</button>
+          </div>
+          <div id="shopPane" class="hidden">
+            <div class="shop-head"><h3>Магазин дня</h3><span class="muted small" id="shopTimer"></span></div>
+            <div class="shop-grid" id="shopGrid"></div>
+            <p class="muted small">Каждый день в 00:00 по Москве — новые 6 предметов. С Pro всё на 20% дешевле.</p>
+          </div>
           <div class="cases-grid" id="casesGrid"></div>
           <h3 class="section-title">Коллекция <span class="muted small" id="collCount"></span></h3>
           <div class="coll-grid" id="collection"></div>
@@ -485,6 +498,28 @@
         </div>
       </div>
 
+
+      <!-- Сообщество -->
+      <div class="tab hidden" id="tab-community">
+        <header class="page-head drag"><h2>Сообщество</h2><p class="muted">Рейтинг игроков Rionina и кланы</p></header>
+        <div class="scroll">
+          <div class="segmented" id="commMode">
+            <button class="active" data-v="top">🏆 Рейтинг</button>
+            <button data-v="clans">⚔️ Кланы</button>
+          </div>
+          <div id="commTop">
+            <div class="segmented lb-by" id="lbBy">
+              <button class="active" data-v="play">⏱️ Время в игре</button>
+              <button data-v="achievements">🏆 Достижения</button>
+              <button data-v="chests">🎁 Сундуки</button>
+              <button data-v="coins">💰 Монеты</button>
+            </div>
+            <div class="lb-me" id="lbMe"></div>
+            <div class="group" id="lbList"></div>
+          </div>
+          <div id="commClans" class="hidden"></div>
+        </div>
+      </div>
       <!-- Профиль -->
       <div class="tab hidden" id="tab-profile">
         <div class="scroll">
@@ -620,6 +655,12 @@
 
   <div class="toast hidden" id="toast"></div>
 
+  <!-- Вылет игры -->
+  <div class="sheet hidden" id="crashSheet"><div class="wn-card crash-card"></div></div>
+
+  <!-- Объявление от Rionina -->
+  <div class="announce hidden" id="announce"></div>
+
   <!-- Что нового -->
   <div class="sheet hidden" id="whatsNew"><div class="wn-card"></div></div>
 
@@ -659,6 +700,7 @@
   <script src="friends.js"></script>
   <script src="extras.js"></script>
   <script src="social.js"></script>
+  <script src="community.js"></script>
   <script src="i18n.js"></script>
 </body>
 </html>

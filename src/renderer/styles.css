@@ -651,3 +651,65 @@ body:not(.mac) .call-bar, body:not(.mac) .update-bar { right: 130px; }
 
 /* Плашки вверху лежат над «ручкой» окна — делаем их кликабельными */
 .update-bar, .call-bar, .update-bar *, .call-bar * { -webkit-app-region: no-drag; }
+
+/* ───────── Вылет ───────── */
+.crash-badge { background: linear-gradient(135deg, #ff3b30, #ff9500); }
+.crash-fixes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.crash-ai { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 14px; }
+.crash-ai p { margin: 6px 0; } .crash-ai ol { margin: 6px 0 0; padding-left: 20px; line-height: 1.6; }
+
+/* ───────── Объявления ───────── */
+.announce { position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%); z-index: 66; width: min(640px, 80vw); display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 18px; color: #fff; background: linear-gradient(135deg, #1f6fe0, #5856d6); box-shadow: 0 18px 50px rgba(0,0,0,.3); animation: rise .35s; -webkit-app-region: no-drag; }
+.announce.event { background: linear-gradient(135deg, #ff7a3d, #ff375f 55%, #bf5af2); }
+.announce.warning { background: linear-gradient(135deg, #ff9f0a, #ff3b30); }
+.an-icon { font-size: 26px; }
+.an-text { flex: 1; display: flex; flex-direction: column; } .an-text span { opacity: .92; font-size: 14px; }
+.announce .btn { background: rgba(255,255,255,.95); color: #111; }
+
+/* ───────── Магазин ───────── */
+.chest-mode { margin-bottom: 16px; }
+.shop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.shop-head h3 { margin: 0 0 12px; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.shop-item { background: var(--surface); border-radius: 18px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; gap: 6px; border-top: 4px solid var(--rc); }
+.shop-item canvas { width: 96px; height: 96px; border-radius: 14px; }
+.si-name { font-weight: 700; text-align: center; } .si-rar { font-size: 12px; color: var(--rc); font-weight: 700; }
+.shop-item .btn { margin-top: 4px; min-width: 110px; }
+
+/* ───────── Рейтинг и кланы ───────── */
+#commMode { margin-bottom: 14px; }
+.lb-by { margin-bottom: 12px; flex-wrap: wrap; }
+.lb-me { margin: 0 0 12px; padding: 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 14px; }
+.lb-me:empty { display: none; }
+.lb-row { display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--line); }
+.lb-row:last-child { border-bottom: 0; }
+.lb-row.me { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.lb-rank { width: 30px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lb-row strong { flex: 1; min-width: 0; }
+.lb-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+.clan-tag { font-size: 12px; font-weight: 800; color: var(--accent); }
+.clan-hero { display: flex; align-items: center; gap: 16px; padding: 20px 22px; border-radius: 22px; color: #fff; margin-bottom: 14px;
+  background: linear-gradient(135deg, var(--cc), color-mix(in srgb, var(--cc) 45%, #000)); box-shadow: var(--shadow); }
+.clan-hero h3 { margin: 0 0 2px; font-size: 22px; } .clan-hero span { opacity: .85; font-size: 13px; }
+.clan-hero > div { flex: 1; }
+.clan-emoji { font-size: 40px; }
+.btn-ghost { background: rgba(255,255,255,.2); color: #fff; }
+.clan-cols { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 14px; align-items: start; }
+.clan-chat { margin-top: 0; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); opacity: .5; flex-shrink: 0; } .dot.on { background: var(--green); opacity: 1; }
+.msg-sys { align-self: center; font-size: 12px; color: var(--muted); }
+.msg b { font-size: 12px; color: var(--accent); }
+.clan-create { margin-bottom: 8px; display: flex; flex-direction: column; gap: 10px; }
+.clan-create h4 { margin: 0; }
+.cc-row { display: flex; gap: 8px; }
+.cc-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.cc-pick button { width: 34px; height: 34px; border-radius: 10px; background: var(--surface-2); font-size: 18px; }
+.cc-pick button.active { box-shadow: 0 0 0 2px var(--accent); }
+.cc-pick.colors button { border-radius: 50%; width: 26px; height: 26px; }
+.clan-create > .btn { align-self: flex-start; }
+.clans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.clan-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); border-left: 5px solid var(--cc); }
+.clan-card .clan-emoji { font-size: 28px; }
+.cc-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+body.glassy .shop-item, body.glassy .clan-card { background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(24px); }

@@ -157,13 +157,24 @@ const EN = {
   'Обновите Rionina Launcher до новой версии': 'Update Rionina Launcher to the new version', 'Обновить': 'Update', 'Скачивание…': 'Downloading…', 'Перезапустить': 'Restart',
   'Язык': 'Language', 'Русский и English': 'Russian and English',
   'Обновите Rionina Launcher': 'Update Rionina Launcher', 'Что добавили': "What's new", 'Обновить сейчас': 'Update now',
-  '⚠️ Это обязательное обновление — без него играть нельзя.': '⚠️ This update is required — you cannot play without it.', 'Сначала обновите': 'Update first', 'Осталось перезапустить': 'Just restart', 'Лаунчер закроется и через пару секунд откроется уже новой версией.': 'The launcher will close and reopen with the new version in a couple of seconds.', '👍 Можно играть и без обновления, но лучше обновить — это займёт пару секунд.': '👍 You can play without updating, but updating is better — it takes a couple of seconds.', 'Позже': 'Later',
+  '⚠️ Это обязательное обновление — без него играть нельзя.': '⚠️ This update is required — you cannot play without it.', 'Сначала обновите': 'Update first', 'Сообщество': 'Community', 'Рейтинг игроков Rionina и кланы': 'Rionina leaderboard and clans', '🏆 Рейтинг': '🏆 Leaderboard', '⚔️ Кланы': '⚔️ Clans',
+  '⏱️ Время в игре': '⏱️ Play time', '🏆 Достижения': '🏆 Achievements', '🎁 Сундуки': '🎁 Chests', '💰 Монеты': '💰 Coins', '🛒 Магазин': '🛒 Shop', 'Магазин дня': 'Daily shop',
+  'Каждый день в 00:00 по Москве — новые 6 предметов. С Pro всё на 20% дешевле.': 'Every day at 00:00 Moscow time — 6 new items. Pro makes everything 20% cheaper.',
+  '✓ Есть': '✓ Owned', 'Рейтинг пока пуст': 'The leaderboard is empty', 'Вас пока нет в рейтинге — играйте, открывайте сундуки и собирайте достижения!': 'You are not on the board yet — play, open chests and earn achievements!',
+  'Выйти из клана': 'Leave clan', 'Точно выйти?': 'Leave for sure?', '💬 Чат клана': '💬 Clan chat', 'Сообщение клану…': 'Message to clan…', 'Напишите клану первым 👋': 'Be the first to write 👋',
+  'Создать клан': 'Create clan', 'Тег (2–5 букв)': 'Tag (2–5 letters)', 'Название клана': 'Clan name', 'Кланы Rionina': 'Rionina clans', 'Вступить': 'Join', 'Кланов пока нет — создайте первый!': 'No clans yet — create the first one!',
+  '🤖 Спросить нейросеть': '🤖 Ask the AI', '🤖 Нейросеть читает журнал…': '🤖 AI is reading the log…', 'Журнал игры ': 'Game log', 'Понятно': 'Got it',
+  'Игре не хватило памяти': 'The game ran out of memory', 'Дать игре больше памяти': 'Give the game more memory', 'Проблема с видеодрайвером': 'Graphics driver problem', 'Игра неожиданно закрылась': 'The game closed unexpectedly',
+  'Файлы игры повреждены': 'Game files are damaged', 'Переустановить версию': 'Reinstall version', 'Моды не подходят друг к другу': 'Mods are not compatible', 'Один мод установлен дважды': 'A mod is installed twice',
+  'Мод сделан для другой версии игры': 'A mod is made for another game version', 'Слишком много памяти для этого компьютера': 'Too much memory for this computer', 'Уменьшить память до 4 ГБ': 'Reduce memory to 4 GB', 'Осталось перезапустить': 'Just restart', 'Лаунчер закроется и через пару секунд откроется уже новой версией.': 'The launcher will close and reopen with the new version in a couple of seconds.', '👍 Можно играть и без обновления, но лучше обновить — это займёт пару секунд.': '👍 You can play without updating, but updating is better — it takes a couple of seconds.', 'Позже': 'Later',
 };
 
 // Фразы с числами и именами
 const EN_PATTERNS = [
   [/^Обновите Rionina Launcher до версии (.+)$/, 'Update Rionina Launcher to version $1'],
   [/^Новая версия (.+)$/, 'New version $1'],
+  [/^Игра вылетела · (.+)$/, 'The game crashed · $1'], [/^Вы на (\d+) месте$/, 'You are #$1'], [/^Новые товары через (\d+) ч (\d+) мин$/, 'New items in $1 h $2 min'],
+  [/^(\d+) из (\d+) игроков · глава (.+)$/, '$1 of $2 players · leader $3'], [/^(\d+) \/ (\d+) игроков$/, '$1 / $2 players'], [/^Создать клан · (\d+)$/, 'Create clan · $1'],
   [/^Версия (.+) скачана$/, 'Version $1 downloaded'],
   [/^Версия (.+) готова — перезапустите лаунчер$/, 'Version $1 is ready — restart the launcher'],
   [/^Minecraft (.+) \(будет установлена\)$/, 'Minecraft $1 (will be installed)'],

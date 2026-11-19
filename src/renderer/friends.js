@@ -89,7 +89,7 @@ async function loadFriends() {
   $('#friendsList').innerHTML = list.length ? list.map((f) => `
     <div class="acc-row friend ${f.online ? '' : 'off'}">
       <img class="fhead" src="https://mc-heads.net/avatar/${esc(f.uuid)}/64" alt="" />
-      <div class="meta"><strong>${esc(f.nick)}${f.pro ? ' <span class="pro-badge">PRO</span>' : ''}</strong><span>${statusText(f)}</span></div>
+      <div class="meta"><strong>${esc(f.nick)}${f.clan ? ` <span class="clan-tag">[${esc(f.clan)}]</span>` : ''}${f.pro ? ' <span class="pro-badge">PRO</span>' : ''}</strong><span>${statusText(f)}</span></div>
       ${f.shared ? `<button class="btn btn-primary btn-sm" data-join="${esc(f.nick)}">Зайти</button>` : ''}
       <button class="btn btn-secondary btn-sm chat-btn" data-chat="${esc(f.nick)}">💬${f.unread ? ` <b class="unread">${f.unread}</b>` : ''}</button>
       <button class="btn btn-secondary btn-sm" data-call="${esc(f.nick)}" title="Голосовой звонок">📞</button>
